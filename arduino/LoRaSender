@@ -1,0 +1,209 @@
+/*************************************************************
+ * Integrated LoRa Sender with DHT11 and MPU6050 Sensors - Sensor Blocks
+ * 
+ * Questo sketch:
+ *  - Legge temperatura e umidità dal DHT11.
+ *  - Legge accelerazione e dati del giroscopio (asse X e Y) dal MPU6050.
+ *  - Calcola l'accelerazione totale (Accel) come sqrt(ax^2 + ay^2 + az^2).
+ *  - Costruisce 3 blocchi da 5 byte ciascuno:
+ *      • DHT11: non cifrato (flag = 0), tipo 0001, payload = [16 bit temp | 16 bit umidità].
+ *      • Accelerazione: cifrato (flag = 1), tipo 0010, payload = (accelerazione * 100).
+ *      • Giroscopio: non cifrato (flag = 0), tipo 0011, payload = [16 bit asse X | 16 bit asse Y],
+ *        dove ciascun asse viene convertito in un intero (valore * 100).
+ *  - Invia il payload concatenato (15 byte totali) via LoRa.
+ *  - Consente di stoppare/riprendere la trasmissione con il pulsante di sistema.
+ *
+ * Hardware:
+ *  - Scheda Heltec LoRa
+ *  - Sensore DHT11 sul pin digitale 7
+ *  - Sensore MPU6050 via I2C
+ *************************************************************/
+
+ #define HELTEC_POWER_BUTTON
+ #define HELTEC_NO_DISPLAY_INSTANCE
+ #include <heltec_unofficial.h>
+ #include <math.h>
+ 
+ // Include libreria per DHT11
+ #include <DHT11.h>
+ #define DHT11_PIN 7
+ DHT11 dht11(DHT11_PIN);
+ 
+ // Include librerie per MPU6050
+ #include <Adafruit_MPU6050.h>
+ #include <Adafruit_Sensor.h>
+ #include <Wire.h>
+ Adafruit_MPU6050 mpu;
+ 
+ // Variabili per il timing
+ unsigned long lastSendTime = 0;
+ const unsigned long sendInterval = 10000; // 10 secondi
+ 
+ // Variabile per abilitare/disabilitare la trasmissione
+ bool isTransmitting = true;
+ 
+ /**
+  * Crea un blocco da 5 byte (40 bit) con la seguente struttura:
+  *  - Bit 39: flag di cifratura (1 se cifrato, 0 altrimenti)
+  *  - Bit 38-36: 3 bit di padding (0)
+  *  - Bit 35-32: codice del tipo di dato (4 bit)
+  *  - Bit 31-0: payload del dato (32 bit)
+  *
+  * Il blocco viene scritto in un array di 5 byte in ordine big-endian.
+  */
+ void createSensorBlock(bool encrypted, uint8_t sensorType, uint32_t payload, uint8_t* blockBuffer) {
+   uint64_t block = 0;
+   block |= ((uint64_t)(encrypted ? 1 : 0)) << 39;      // Bit 39: flag di cifratura
+   // I 3 bit di padding (38-36) sono 0
+   block |= ((uint64_t)(sensorType & 0x0F)) << 32;        // Bit 35-32: codice del tipo
+   block |= payload;                                      // Bit 31-0: payload
+   // Estrae i 5 byte (40 bit) in ordine big-endian
+   for (int i = 0; i < 5; i++) {
+     int shift = (4 - i) * 8; // i=0: shift=32, i=4: shift=0
+     blockBuffer[i] = (uint8_t)((block >> shift) & 0xFF);
+   }
+ }
+ 
+ void setup() {
+   heltec_setup();
+   Serial.begin(115200);
+   Serial.println("LoRa Sender with Sensor Blocks (Numeric Payloads)");
+ 
+   // Inizializza la radio LoRa
+   Serial.println("Initializing LoRa radio...");
+   RADIOLIB_OR_HALT(radio.begin());
+   RADIOLIB_OR_HALT(radio.setFrequency(866.3));
+   RADIOLIB_OR_HALT(radio.setBandwidth(250.0));
+   RADIOLIB_OR_HALT(radio.setSpreadingFactor(9));
+   RADIOLIB_OR_HALT(radio.setOutputPower(0));
+ 
+   // Inizializza I2C e MPU6050
+   Wire.begin();
+   Serial.println("Initializing MPU6050...");
+   if (!mpu.begin()) {
+     Serial.println("Failed to find MPU6050 chip");
+     while (1) { delay(10); }
+   }
+   Serial.println("MPU6050 Found!");
+   mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+   mpu.setGyroRange(MPU6050_RANGE_500_DEG);
+   mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+   delay(100);
+ }
+ 
+ void loop() {
+   heltec_loop();
+ 
+   // Controlla se c'è un click singolo sul pulsante per stoppare/riprendere la trasmissione
+   if (button.isSingleClick()) {
+     isTransmitting = !isTransmitting;
+     if (isTransmitting)
+       Serial.println("Transmission RESUMED.");
+     else
+       Serial.println("Transmission STOPPED.");
+   }
+ 
+   if (isTransmitting) {
+     unsigned long currentMillis = millis();
+     if (currentMillis - lastSendTime >= sendInterval) {
+       lastSendTime = currentMillis;
+ 
+       // --- Legge DHT11 ---
+       int temperature = 0, humidity = 0;
+       int dhtResult = dht11.readTemperatureHumidity(temperature, humidity);
+       if (dhtResult != 0) {
+         Serial.printf("DHT11 Error: %s\n", DHT11::getErrorString(dhtResult));
+       }
+ 
+       // --- Legge MPU6050 ---
+       sensors_event_t a, g, temp;
+       mpu.getEvent(&a, &g, &temp);
+ 
+       // Log dei dati MPU6050 per verificare la lettura
+       Serial.println("MPU6050 Readings:");
+       Serial.print("  Accelerometer: ");
+       Serial.print("X=");
+       Serial.print(a.acceleration.x, 2);
+       Serial.print(" m/s^2, Y=");
+       Serial.print(a.acceleration.y, 2);
+       Serial.print(" m/s^2, Z=");
+       Serial.print(a.acceleration.z, 2);
+       Serial.println(" m/s^2");
+       
+       Serial.print("  Gyroscope: ");
+       Serial.print("X=");
+       Serial.print(g.gyro.x, 2);
+       Serial.print(" deg/s, Y=");
+       Serial.print(g.gyro.y, 2);
+       Serial.print(" deg/s, Z=");
+       Serial.print(g.gyro.z, 2);
+       Serial.println(" deg/s");
+       
+       Serial.print("  MPU6050 Temperature: ");
+       Serial.print(temp.temperature, 2);
+       Serial.println(" C");
+ 
+       // --- Calcola accelerazione totale ---
+       float Accel = sqrt(
+         a.acceleration.x * a.acceleration.x +
+         a.acceleration.y * a.acceleration.y +
+         a.acceleration.z * a.acceleration.z
+       );
+       Serial.print("  Total Acceleration (Accel): ");
+       Serial.print(Accel, 2);
+       Serial.println(" m/s^2");
+ 
+       // --- Creazione dei blocchi sensoriali ---
+ 
+       // DHT11: non cifrato, tipo 0x1, payload = [16 bit temperatura | 16 bit umidità]
+       uint8_t dhtBlock[5];
+       uint32_t dhtPayload = (((uint16_t)temperature) << 16) | ((uint16_t)humidity);
+       createSensorBlock(false, 0x1, dhtPayload, dhtBlock);
+ 
+       // Accelerometro: cifrato, tipo 0x2, payload = (accelerazione * 100)
+       uint8_t accelBlock[5];
+       uint32_t accelPayload = (uint32_t)(Accel * 100);
+       createSensorBlock(true, 0x2, accelPayload, accelBlock);
+ 
+       // Giroscopio: non cifrato, tipo 0x3, payload = [16 bit asse X | 16 bit asse Y]
+       uint8_t gyroBlock[5];
+       int16_t gyroX = (int16_t)(g.gyro.x * 100);
+       int16_t gyroY = (int16_t)(g.gyro.y * 100);
+       uint32_t gyroPayload = (((uint16_t)gyroX) << 16) | ((uint16_t)gyroY);
+       createSensorBlock(false, 0x3, gyroPayload, gyroBlock);
+ 
+       // --- Concatenazione dei blocchi in un payload unico (15 byte) ---
+       uint8_t payload[15];
+       memcpy(payload, dhtBlock, 5);
+       memcpy(payload + 5, accelBlock, 5);
+       memcpy(payload + 10, gyroBlock, 5);
+ 
+       // Log del payload in esadecimale e in bit
+       Serial.print("Payload (hex): ");
+       for (int i = 0; i < 15; i++) {
+         if (payload[i] < 16) Serial.print("0");
+         Serial.print(payload[i], HEX);
+       }
+       Serial.println();
+ 
+       Serial.print("Payload (bits): ");
+       for (int i = 0; i < 15; i++) {
+         for (int bit = 7; bit >= 0; bit--) {
+           Serial.print((payload[i] >> bit) & 1);
+         }
+       }
+       Serial.println();
+ 
+       // --- Trasmissione del payload via LoRa ---
+       int txState = radio.transmit(payload, 15);
+       if (txState == RADIOLIB_ERR_NONE) {
+         Serial.println("Transmission successful!");
+       } else {
+         Serial.printf("Transmission failed, error code: %d\n", txState);
+       }
+     }
+   }
+ 
+   delay(50);
+ }
+ 

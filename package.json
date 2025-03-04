@@ -1,0 +1,26 @@
+{
+  "name": "TesiIOTA",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@iota/iota-sdk": "^0.5.0",
+    "@iota/sdk": "^1.1.5",
+    "@mysten/bcs": "0.3.0",
+    "@mysten/sui": "^1.21.1",
+    "@mysten/sui.js": "^0.1.0",
+    "aedes": "^0.51.3",
+    "base58": "^2.0.1",
+    "cors": "^2.8.5",
+    "crypto": "^1.0.1",
+    "dotenv": "^16.4.7",
+    "ethers": "^6.13.5",
+    "express": "^4.21.2",
+    "mqtt": "^5.10.4",
+    "net": "^1.0.2",
+    "pg": "^8.13.3"
+  }
+}
