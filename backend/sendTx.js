@@ -1,3 +1,4 @@
+// blockchainSender.js
 import express from 'express';
 import crypto from 'crypto';
 import { ethers } from 'ethers';
@@ -8,23 +9,16 @@ import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { spawn } from 'child_process';
 import cors from 'cors';
 
-dotenv.config({path: "../.env"});
+dotenv.config({ path: "../.env" });
 
 const app = express();
 const port = 3001;
 app.use(express.json());
-app.use(cors({
-  origin: 'http://localhost:3000',
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type']
-}));
+app.use(cors());
 
-// ----- IOTAEVM Setup -----
+// ------------------ IOTAEVM Setup ------------------
 const provider = new ethers.JsonRpcProvider("https://json-rpc.evm.testnet.iotaledger.net");
-const wallet = new ethers.Wallet(
-  process.env.ETH_PRIVATE_KEY,
-  provider
-);
+const wallet = new ethers.Wallet(process.env.ETH_PRIVATE_KEY, provider);
 const contractAddress = process.env.CONC_ADDR;
 const abi = [
   "function receiveSensorBatch(string vehicleId, uint256 timestamp, string hexData) external",
@@ -32,21 +26,19 @@ const abi = [
 ];
 const sensorContract = new ethers.Contract(contractAddress, abi, wallet);
 
-const client = new SuiClient({ url: "https://fullnode.devnet.sui.io:443" });
-const suiPrivateKey = "7cd59cf6b3d002f41be14bd684d022234ddfe69696b6d5b5ed84e30c40df26c7";
+// ------------------ SUI Setup ------------------
+const suiClient = new SuiClient({ url: "https://fullnode.devnet.sui.io:443" });
+const suiPrivateKey = process.env.SUI_PRIVATE_KEY;
 const keypair = Ed25519Keypair.fromSecretKey(Buffer.from(suiPrivateKey, "hex"));
 
-
-// Package ID from your comment
-const packageId = "0x40b03a280003d60b9a6f4b184c4c6066c940ab6a4830e9e97f6394aceaf5a095";
+// Package ID and Move call target – ensure PACKAGE_ID is defined in your .env
+const packageId = process.env.PACKAGE_ID;
 const moveCallTarget = `${packageId}::SensorData::send_sensor_data`;
 
-
-// ----- Helper Functions for Bit/Hex Conversion -----
+// ------------------ Helper Functions ------------------
 function hexToBits(hexString) {
   return hexString.split('').map(c => parseInt(c, 16).toString(2).padStart(4, '0')).join('');
 }
-
 function bitsToHex(bitStr) {
   let hex = "";
   for (let i = 0; i < bitStr.length; i += 4) {
@@ -54,12 +46,10 @@ function bitsToHex(bitStr) {
   }
   return hex;
 }
-
 function bitsToBuffer(bitStr) {
   const bytes = bitStr.match(/.{1,8}/g).map(b => parseInt(b, 2));
   return Buffer.from(bytes);
 }
-
 function getCurrentDayString() {
   const now = new Date();
   const year = now.getUTCFullYear();
@@ -68,16 +58,12 @@ function getCurrentDayString() {
   return `${year}-${month}-${day}`;
 }
 
-// ----- Master Key / Daily Key Logic for Encryption -----
-const MASTER_KEY = process.env.MASTER_KEY || "5b5425e6c3abdd369f3ef230dfc485e3a3e35386d68ad3c76c6d3225e471624d";
+const MASTER_KEY = "5b5425e6c3abdd369f3ef230dfc485e3a3e35386d68ad3c76c6d3225e471624d";
 const masterKeyBuffer = Buffer.from(MASTER_KEY, 'hex');
-
 function generateDailyKey(dayStr) {
   const dayBuffer = Buffer.from(dayStr, 'utf8');
   return crypto.createHash('sha256').update(Buffer.concat([masterKeyBuffer, dayBuffer])).digest();
 }
-
-// ----- Process Sensor Data -----
 function processSensorData(dataHex) {
   if (dataHex.startsWith("0x")) dataHex = dataHex.slice(2);
   const originalBitStr = hexToBits(dataHex);
@@ -114,12 +100,11 @@ function processSensorData(dataHex) {
   return bitsToHex(processedBitStr);
 }
 
-// ----- SENDER FUNCTIONS -----
-// IOTAEVM: send to the EVM sensor contract
+// ------------------ Blockchain Sender Functions ------------------
 const sendToIOTAEVM = async (vehicleId, timestamp, processedDataHex) => {
   try {
     const tx = await sensorContract.receiveSensorBatch(vehicleId, timestamp, processedDataHex);
-    console.log(`✅ IOTAEVM TX: https://explorer.evm.testnet.iotaledger.net/tx/${tx.hash}`);
+    console.log(`IOTAEVM TX: https://explorer.evm.testnet.iotaledger.net/tx/${tx.hash}`);
     await tx.wait();
     console.log("IOTAEVM Tx confirmed!");
     return tx.hash;
@@ -129,32 +114,26 @@ const sendToIOTAEVM = async (vehicleId, timestamp, processedDataHex) => {
   }
 };
 
-// SUI: send data using a Move call
 const sendToSui = async (vehicleId, timestamp, processedDataHex) => {
   try {
-
+    const tx = new Transaction();
+    tx.setSender(keypair.getPublicKey().toSuiAddress());
+    tx.setGasPrice(1000);
+    tx.setGasBudget(10_000_000);
     
-      // Create a new TransactionBlock (not Transaction)
-      const tx = new Transaction();
-      tx.setSender(keypair.getPublicKey().toSuiAddress());
-      tx.setGasPrice(1000);
-      tx.setGasBudget(10_000_000);
-      
-      
-      // Add the move call
-      tx.moveCall({
-        target: moveCallTarget,
-        arguments: [
-          tx.pure.string(vehicleId),
-          tx.pure.u64(timestamp),
-          tx.pure.string(processedDataHex)
-        ],
-      });
-
-      const builtTx = await tx.build({ client });
-      const { bytes: txBytes, signature: txSignature } = await keypair.signTransaction(builtTx);
-      const result = await client.executeTransactionBlock({ transactionBlock: txBytes, signature: txSignature });
-      console.log(`✅ Sui TX: https://suiscan.xyz/devnet/tx/${result.digest}?network=devnet`);
+    tx.moveCall({
+      target: moveCallTarget,
+      arguments: [
+        tx.pure.string(vehicleId),
+        tx.pure.u64(timestamp),
+        tx.pure.string(processedDataHex)
+      ],
+    });
+    
+    const builtTx = await tx.build({ client: suiClient });
+    const { bytes: txBytes, signature: txSignature } = await keypair.signTransaction(builtTx);
+    const result = await suiClient.executeTransactionBlock({ transactionBlock: txBytes, signature: txSignature });
+    console.log(`Sui TX: https://suiscan.xyz/devnet/tx/${result.digest}?network=devnet`);
     return result.digest;
   } catch (error) {
     console.error('Error sending data to Sui:', error);
@@ -162,7 +141,6 @@ const sendToSui = async (vehicleId, timestamp, processedDataHex) => {
   }
 };
 
-// IOTA Data-only: use a Python script (feeless)
 const sendToIOTADataOnly = async (vehicleId, processedDataHex) => {
   return new Promise((resolve, reject) => {
     const pythonProcess = spawn('python3', ['python/send_iota.py', vehicleId, processedDataHex]);
@@ -175,7 +153,7 @@ const sendToIOTADataOnly = async (vehicleId, processedDataHex) => {
     });
     pythonProcess.on('close', (code) => {
       if (code === 0) {
-        console.log(`✅ IOTA Block: https://explorer.iota.org/iota-testnet/block/${result.trim()}`);
+        console.log(`IOTA Block: https://explorer.iota.org/iota-testnet/block/${result.trim()}`);
         resolve(result.trim());
       } else {
         reject(new Error('Error executing Python script'));
@@ -184,22 +162,22 @@ const sendToIOTADataOnly = async (vehicleId, processedDataHex) => {
   });
 };
 
-
-// ----- Express Endpoint -----
-app.post('/send', async (req, res) => {
+// ------------------ Express Endpoint ------------------
+app.post('/sendTx', async (req, res) => {
   try {
-    const { data } = req.body;
-    if (!data) return res.status(400).json({ error: "Missing 'data'" });
-    console.log("Data received:", req.body);
-    const processedDataHex = processSensorData(data);
-    console.log("Processed hex:", processedDataHex);
-    const vehicleId = "vehicle-123";
-    const timestamp = Math.floor(Date.now() / 1000);
+    const { payload, timestamp } = req.body;
+    if (!payload || !timestamp) {
+      return res.status(400).json({ error: "Missing payload or timestamp" });
+    }
     
-    // Send to each platform
-    const iotaEvmTxHash = await sendToIOTAEVM(vehicleId, timestamp, processedDataHex);
-    const suiDigest = await sendToSui(vehicleId, timestamp, processedDataHex);
-    const iotaDataBlock = await sendToIOTADataOnly(vehicleId, processedDataHex);
+    console.log("Received blockchain TX request with payload:", payload, "and timestamp:", timestamp);
+    
+    const vehicleId = "vehicle-123";
+    const unixTimestamp = Math.floor(new Date(timestamp).getTime() / 1000);
+    
+    const iotaEvmTxHash = await sendToIOTAEVM(vehicleId, unixTimestamp, payload);
+    const suiDigest = await sendToSui(vehicleId, unixTimestamp, payload);
+    const iotaDataBlock = await sendToIOTADataOnly(vehicleId, payload);
     
     res.json({
       message: "Sensor data sent successfully to all chains",
@@ -213,12 +191,11 @@ app.post('/send', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error in /sendTx:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
 app.listen(port, () => {
-  console.log(`Server listening on port ${port}`);
-  console.log("MASTER_KEY (hex):", MASTER_KEY.toString('hex'));
+  console.log(`Blockchain sender server listening on port ${port}`);
 });
