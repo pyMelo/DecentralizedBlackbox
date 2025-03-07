@@ -1,8 +1,8 @@
 // Load environment variables from .env file
 require("@nomicfoundation/hardhat-toolbox");
-import dotenv from 'dotenv';
+const dotenv = require('dotenv');
 
-dotenv.config({path: "../../.env"})
+dotenv.config({path:".env"})
 
 
 module.exports = {

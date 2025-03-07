@@ -1,10 +1,14 @@
 import { SuiClient } from '@mysten/sui/client';
 
+//import dotenv from 'dotenv';
+
+//dotenv.config({path:"../.env"})
+
 // Connect to Sui Devnet (change URL for mainnet if needed)
 const client = new SuiClient({ url: 'https://fullnode.devnet.sui.io:443' });
 
 // Package ID and function name for your SensorData Move module
-const PACKAGE_ID = "0x40b03a280003d60b9a6f4b184c4c6066c940ab6a4830e9e97f6394aceaf5a095";
+const PACKAGE_ID = "0xfc784c5c8e522b23c41d4439f83117f76bc3c1b82ce3fe79e9d8df09f1a3817c";
 const FUNCTION_NAME = "send_sensor_data";
 
 /**

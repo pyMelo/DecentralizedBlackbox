@@ -249,6 +249,7 @@ const IotaEvmDashboard = ({ vehicleId }) => {
       </Snackbar>
     </Container>
   );
+  
 };
 
 export default IotaEvmDashboard;

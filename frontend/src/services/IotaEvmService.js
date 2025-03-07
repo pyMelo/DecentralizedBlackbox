@@ -1,9 +1,13 @@
 import { ethers } from 'ethers';
 import { decodePayload, translateBlocks } from '../lib/payload';
 
+//import dotenv from 'dotenv';
+
+//dotenv.config();
+
 // Set up the provider and contract
 const provider = new ethers.JsonRpcProvider("https://json-rpc.evm.testnet.iotaledger.net");
-const contractAddress = "0x34B3b0a10B0aC0B0d021bDb0d164608701586eF9";
+const contractAddress = "0x8fCC0729da46EefDc6956b8184295Fb06bF2E482";
 const abi = [
   "function getAllSensorBatchesForDay(string vehicleId, uint256 dateKey) external view returns (tuple(uint256 timestamp, string hexData)[])"
 ];

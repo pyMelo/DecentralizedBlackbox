@@ -65,7 +65,7 @@ function generateDailyKey(dayStr) {
   return crypto.createHash('sha256').update(Buffer.concat([masterKeyBuffer, dayBuffer])).digest();
 }
 function processSensorData(dataHex) {
-  if (dataHex.startsWith("0x")) dataHex = dataHex.slice(2);
+  if (dataHex.startsWith("0x")) dataHex  = dataHex.slice(2);
   const originalBitStr = hexToBits(dataHex);
   if (originalBitStr.length % 40 !== 0) throw new Error("Invalid data length");
   const numBlocks = originalBitStr.length / 40;

@@ -15,6 +15,11 @@ RTC_DATA_ATTR uint8_t count = 0;
 #define BUTTON_PIN 0  // PRG button on Heltec ESP32 (GPIO 0)
 DHT11 dht11(DHT11_PIN);
 Adafruit_MPU6050 mpu;
+uint32_t devAddr = 0x268B2930;
+
+uint8_t nwsKey[] = { 0x8B, 0x47, 0x6D, 0x64, 0xAC, 0xD9, 0x12, 0x53, 0xCB, 0x77, 0x5A, 0xD2, 0x85, 0x76, 0x30, 0x3B };
+uint8_t appsKey[] = { 0x30, 0x50, 0x40, 0xC1, 0x1E, 0xF4, 0xE0, 0xA0, 0x93, 0x19, 0xAF, 0x36, 0xCE, 0x02, 0xB2, 0xF7 };
+
 
 void createSensorBlock(bool encrypted, uint8_t sensorType, uint32_t payload, uint8_t* blockBuffer) {
     uint64_t block = 0;
@@ -33,7 +38,6 @@ void setup() {
     pinMode(BUTTON_PIN, INPUT_PULLUP);  // Configure PRG button (GPIO 0)
 
     Serial.println("Initializing sensors...");
-    persist.wipe();
     Wire.begin();
     if (!mpu.begin()) {
         Serial.println("Failed to find MPU6050 chip");
@@ -51,19 +55,18 @@ void setup() {
     }
 
     node = persist.manage(&radio);
+    node->setDatarate(3);     // A seconda di come la tua libreria mappa i DR
+    node->setADR(false);
+
     if (node->isActivated()) {
-        Serial.println("✅ Device is already activated. Skipping join.");
+        Serial.println("✅ Device already activated. Using persisted session.");
     } else {
-        Serial.println("🌐 Joining LoRaWAN network...");
-        uint64_t joinEUI = 0x4A444EABA0040405;
-        uint64_t devEUI = 0x70B3D57ED006E906;
-        uint8_t appKey[] = {0xC9, 0xB1, 0xD7, 0x70, 0xF7, 0x05, 0xBC, 0xB1, 
-                            0x04, 0x91, 0x56, 0xCB, 0xD3, 0x40, 0x54, 0x35};
-        int16_t joinResult = node->beginOTAA(joinEUI, devEUI, appKey, appKey);
-        if (joinResult != RADIOLIB_ERR_NONE) {
-            Serial.printf("❌ Join failed with error %d\n", joinResult);
+        Serial.println("Usign state ABP ");
+        state = node->beginABP(devAddr,NULL,NULL, nwsKey, appsKey);
+        if (state != RADIOLIB_ERR_NONE) {
+            Serial.printf("❌ ABP activation failed with error %d\n", state);
         } else {
-            Serial.println("✅ Successfully joined LoRaWAN network!");
+            Serial.println("✅ Device activated using ABP.");
         }
     }
 
@@ -77,9 +80,16 @@ void sendLoRaData() {
     sensors_event_t a, g, temp;
     mpu.getEvent(&a, &g, &temp);
 
+    Serial.println(" -------------- DATA SENDED -------------- ");
+    Serial.printf("Temperature and humidity %d and %d \n", temperature, humidity);
+
     float Accel = sqrt(a.acceleration.x * a.acceleration.x +
                         a.acceleration.y * a.acceleration.y +
                         a.acceleration.z * a.acceleration.z);
+
+    Serial.printf("Accel : %f \n", Accel);
+
+    Serial.println(" -------------- DATA SENDED -------------- ");
 
     uint8_t dhtBlock[5];
     createSensorBlock(false, 0x1, (((uint16_t)temperature) << 16) | ((uint16_t)humidity), dhtBlock);
@@ -120,7 +130,18 @@ void sendLoRaData() {
     }
 
     // Save the session but do not enter deep sleep
-    persist.saveSession(node);
+    persist.saveSession(node);    node = persist.manage(&radio);
+    if (node->isActivated()) {
+        Serial.println("✅ Device already activated. Using persisted session.");
+    } else {
+        // Activate using ABP since no session is active.
+        state = node->beginABP(devAddr,NULL,NULL, nwsKey, appsKey);
+        if (state != RADIOLIB_ERR_NONE) {
+            Serial.printf("❌ ABP activation failed with error %d\n", state);
+        } else {
+            Serial.println("✅ Device activated using ABP.");
+        }
+    }
 }
 
 void loop() {
