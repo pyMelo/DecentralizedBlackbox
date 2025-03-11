@@ -172,7 +172,7 @@ app.post('/sendTx', async (req, res) => {
     
     console.log("Received blockchain TX request with payload:", payload, "and timestamp:", timestamp);
     
-    const vehicleId = "vehicle-123";
+    const vehicleId = "v-123";
     const unixTimestamp = Math.floor(new Date(timestamp).getTime() / 1000);
     
     const iotaEvmTxHash = await sendToIOTAEVM(vehicleId, unixTimestamp, payload);

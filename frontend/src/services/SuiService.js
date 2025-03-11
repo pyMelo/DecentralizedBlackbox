@@ -8,7 +8,7 @@ import { SuiClient } from '@mysten/sui/client';
 const client = new SuiClient({ url: 'https://fullnode.devnet.sui.io:443' });
 
 // Package ID and function name for your SensorData Move module
-const PACKAGE_ID = "0xfc784c5c8e522b23c41d4439f83117f76bc3c1b82ce3fe79e9d8df09f1a3817c";
+const PACKAGE_ID = "0x3de41b3581966969c92cd55d47399f23ee513a58bb1ba4af7aef29ba1e3e7cf0";
 const FUNCTION_NAME = "send_sensor_data";
 
 /**

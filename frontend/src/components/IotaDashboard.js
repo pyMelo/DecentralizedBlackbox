@@ -204,9 +204,6 @@ const IotaEvmDashboard = ({ vehicleId }) => {
       ) : (
         !loading && <Typography>No data fetched yet.</Typography>
       )}
-      <Box sx={{ marginTop: 4 }}>
-        <SensorCards sensorData={{}} />
-      </Box>
       {dataBatches.length > 0 && (
         <Box sx={{ marginTop: 3, padding: 2, border: '1px solid #ccc', borderRadius: 2, backgroundColor: '#f5f5f5' }}>
           <Typography variant="h6" gutterBottom>
