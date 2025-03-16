@@ -13,3 +13,6 @@ console.log("Generated ESP32 Key:", esp32Key);
 //  
 
 // CONTRATTO : 0x502F98a7984DfD7223072093eEb5B1F3e4f4835f
+
+// GOD COMMAND git reset --soft HEAD~1
+// PACKAGE : 0xd6f11995345a69bd6959119cd2394bb3ef545242c28a7841d5e19e566e233a0e
