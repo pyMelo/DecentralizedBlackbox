@@ -1,6 +1,5 @@
 "use client"
 
-// src/components/Home.js
 import { useState, useEffect } from "react"
 import {
   Box,
@@ -22,17 +21,17 @@ import {
   CircularProgress,
   Zoom,
   Fade,
+  Tooltip,
+  Divider,
 } from "@mui/material"
 import { useNavigate } from "react-router-dom"
-import { keyframes } from "@emotion/react"
 import EditIcon from "@mui/icons-material/Edit"
+import AccountCircleIcon from "@mui/icons-material/AccountCircle"
+import CalendarMonthIcon from "@mui/icons-material/CalendarMonth"
+import DirectionsCarIcon from "@mui/icons-material/DirectionsCar"
+import InfoIcon from "@mui/icons-material/Info"
+import SecurityIcon from "@mui/icons-material/Security"
 import { styled } from "@mui/system"
-
-// Enhanced animations
-const floatAnimation = keyframes`
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-`
 
 // Styled components
 const GlassCard = styled(Card)(({ theme }) => ({
@@ -75,35 +74,69 @@ const GlassButton = styled(Button)(({ theme }) => ({
   },
 }))
 
-const StyledTextField = styled(TextField)(({ theme }) => ({
-  "& .MuiOutlinedInput-root": {
-    borderRadius: "12px",
-    backdropFilter: "blur(10px)",
-    background: "rgba(255, 255, 255, 0.1)",
-    "& fieldset": {
-      borderColor: "rgba(255, 255, 255, 0.3)",
-    },
-    "&:hover fieldset": {
-      borderColor: "rgba(255, 255, 255, 0.5)",
-    },
-    "&.Mui-focused fieldset": {
-      borderColor: "#A865C9",
-    },
-  },
-  "& .MuiInputLabel-root": {
-    color: "rgba(255, 255, 255, 0.7)",
-  },
-  "& .MuiInputBase-input": {
-    color: "white",
-  },
-}))
-
 const StyledDialogTitle = styled(DialogTitle)(({ theme }) => ({
   background: "linear-gradient(45deg, #2a0845 0%, #6441A5 100%)",
   color: "white",
   padding: "16px 24px",
   fontFamily: "'Montserrat', sans-serif",
   fontWeight: 600,
+}))
+
+const PlatformCard = styled(GlassCard)(({ theme, platform }) => ({
+  width: "100%",
+  height: 420,
+  position: "relative",
+  overflow: "hidden",
+  "&::before": {
+    content: '""',
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background:
+      platform === "sui"
+        ? "linear-gradient(135deg, rgba(100, 65, 165, 0.2) 0%, transparent 80%)"
+        : "linear-gradient(225deg, rgba(100, 65, 165, 0.2) 0%, transparent 80%)",
+    zIndex: 0,
+    transition: "opacity 0.5s ease",
+    opacity: 0.7,
+  },
+  "&:hover::before": {
+    opacity: 1,
+  },
+}))
+
+const GlowingBorder = styled(Box)(({ theme }) => ({
+  position: "absolute",
+  top: -2,
+  left: -2,
+  right: -2,
+  bottom: -2,
+  borderRadius: "26px",
+  background: "linear-gradient(45deg, #6441A5, #2a0845, #A865C9, #6441A5)",
+  backgroundSize: "400% 400%",
+  zIndex: -1,
+  animation: "gradientBG 8s ease infinite",
+  "@keyframes gradientBG": {
+    "0%": { backgroundPosition: "0% 50%" },
+    "50%": { backgroundPosition: "100% 50%" },
+    "100%": { backgroundPosition: "0% 50%" },
+  },
+}))
+
+const TechBadge = styled(Box)(({ theme }) => ({
+  position: "absolute",
+  padding: "4px 12px",
+  borderRadius: "20px",
+  background: "rgba(255, 255, 255, 0.1)",
+  backdropFilter: "blur(5px)",
+  border: "1px solid rgba(255, 255, 255, 0.2)",
+  color: "white",
+  fontSize: "0.75rem",
+  fontWeight: 600,
+  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+  zIndex: 1,
 }))
 
 const Home = () => {
@@ -184,6 +217,14 @@ const Home = () => {
     setOpenEdit(false)
   }
 
+  // Funzione per navigare con effetto
+  const handleNavigate = (path) => {
+    setLoading(true)
+    setTimeout(() => {
+      navigate(path)
+    }, 500)
+  }
+
   return (
     <Box
       sx={{
@@ -193,16 +234,14 @@ const Home = () => {
         width: "100%",
         height: "100%",
         overflow: "hidden",
-        bgcolor: "#2a0845",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
         fontFamily: "'Montserrat', sans-serif",
-        // Base background color
         background: "linear-gradient(135deg, #2a0845 0%, #6441A5 100%)",
       }}
     >
-      {/* Fixed wavy pattern background */}
+      {/* Static background elements */}
       <Box
         sx={{
           position: "absolute",
@@ -211,62 +250,63 @@ const Home = () => {
           width: "100%",
           height: "100%",
           zIndex: 0,
-          opacity: 0.6,
-          backgroundImage: `
-            url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%23ffffff' fill-opacity='0.1' fill-rule='evenodd'/%3E%3C/svg%3E"),
-            url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 27.5c0 8.284 6.716 15 15 15 8.284 0 15-6.716 15-15 0-8.284-6.716-15-15-15-8.284 0-15 6.716-15 15zm100 0c0 8.284-6.716 15-15 15-8.284 0-15-6.716-15-15 0-8.284 6.716-15 15-15 8.284 0 15 6.716 15 15zM0 77.5c0 8.284 6.716 15 15 15 8.284 0 15-6.716 15-15 0-8.284-6.716-15-15-15-8.284 0-15 6.716-15 15zm100 0c0 8.284-6.716 15-15 15-8.284 0-15-6.716-15-15 0-8.284 6.716-15 15-15 8.284 0 15 6.716 15 15z' fill='%23a865c9' fill-opacity='0.1' fill-rule='evenodd'/%3E%3C/svg%3E")
+          opacity: 0.4,
+          background: `
+            radial-gradient(circle at 20% 30%, rgba(168, 101, 201, 0.4) 0%, transparent 40%),
+            radial-gradient(circle at 80% 70%, rgba(168, 101, 201, 0.4) 0%, transparent 40%)
           `,
+          overflow: "hidden",
         }}
-      />
+      >
+        {/* Static decorative elements */}
+        <Box
+          sx={{
+            position: "absolute",
+            top: "10%",
+            left: "10%",
+            width: "300px",
+            height: "300px",
+            borderRadius: "50%",
+            background: "rgba(168, 101, 201, 0.1)",
+            filter: "blur(60px)",
+          }}
+        />
+        <Box
+          sx={{
+            position: "absolute",
+            bottom: "20%",
+            right: "15%",
+            width: "250px",
+            height: "250px",
+            borderRadius: "50%",
+            background: "rgba(168, 101, 201, 0.1)",
+            filter: "blur(60px)",
+          }}
+        />
 
-      {/* Wave pattern overlay */}
-      <Box
-        sx={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: "100%",
-          height: "100%",
-          zIndex: 0,
-          opacity: 0.4,
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3Cpattern id='pattern' width='100' height='100' patternUnits='userSpaceOnUse'%3E%3Cpath d='M 0,50 C 20,30 40,30 50,50 C 60,70 80,70 100,50 L 100,100 L 0,100 Z' fill='%23d8b5ff' fill-opacity='0.2'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width='100%25' height='100%25' fill='url(%23pattern)'/%3E%3C/svg%3E")`,
-          backgroundSize: "100% 100px",
-          backgroundRepeat: "repeat-y",
-        }}
-      />
+        {/* Grid pattern overlay */}
+        <Box
+          sx={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            backgroundImage: `
+              linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px)
+            `,
+            backgroundSize: "40px 40px",
+            zIndex: 0,
+          }}
+        />
+      </Box>
 
-      {/* Curved wave pattern */}
-      <Box
-        sx={{
-          position: "absolute",
-          bottom: 0,
-          left: 0,
-          width: "100%",
-          height: "300px",
-          zIndex: 0,
-          opacity: 0.5,
-          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 320'%3E%3Cpath fill='%23a865c9' fill-opacity='0.3' d='M0,224L48,213.3C96,203,192,181,288,181.3C384,181,480,203,576,224C672,245,768,267,864,261.3C960,256,1056,224,1152,197.3C1248,171,1344,149,1392,138.7L1440,128L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z'%3E%3C/path%3E%3C/svg%3E")`,
-          backgroundSize: "cover",
-          backgroundRepeat: "no-repeat",
-        }}
-      />
-
-      {/* Diagonal wave pattern */}
-      <Box
-        sx={{
-          position: "absolute",
-          top: 0,
-          right: 0,
-          width: "100%",
-          height: "300px",
-          zIndex: 0,
-          opacity: 0.4,
-          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 320'%3E%3Cpath fill='%23d8b5ff' fill-opacity='0.3' d='M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,133.3C672,139,768,181,864,181.3C960,181,1056,139,1152,122.7C1248,107,1344,117,1392,122.7L1440,128L1440,0L1392,0C1344,0,1248,0,1152,0C1056,0,960,0,864,0C768,0,672,0,576,0C480,0,384,0,288,0C192,0,96,0,48,0L0,0Z'%3E%3C/path%3E%3C/svg%3E")`,
-          backgroundSize: "cover",
-          backgroundRepeat: "no-repeat",
-          transform: "rotate(180deg)",
-        }}
-      />
+      {/* Static tech badges */}
+      <TechBadge sx={{ top: "15%", left: "20%" }}>Blockchain</TechBadge>
+      <TechBadge sx={{ top: "25%", right: "15%" }}>IoT</TechBadge>
+      <TechBadge sx={{ bottom: "20%", left: "25%" }}>Crypto</TechBadge>
+      <TechBadge sx={{ bottom: "30%", right: "20%" }}>Security</TechBadge>
 
       {/* Loading overlay */}
       <Backdrop
@@ -285,7 +325,6 @@ const Home = () => {
             sx={{
               mt: 2,
               fontWeight: 600,
-              animation: `${floatAnimation} 2s ease-in-out infinite`,
             }}
           >
             Inizializzazione...
@@ -332,15 +371,40 @@ const Home = () => {
             }}
           >
             <Box sx={{ p: 3, minWidth: 250 }}>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: "#2a0845" }}>
-                {nick}
-              </Typography>
-              <Typography variant="body2" sx={{ mb: 0.5, color: "#666" }}>
-                <strong>Vehicle ID:</strong> {vehicleId}
-              </Typography>
-              <Typography variant="body2" gutterBottom sx={{ mb: 2, color: "#666" }}>
-                <strong>Data Inizio:</strong> {initDate}
-              </Typography>
+              <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+                <Avatar
+                  sx={{
+                    bgcolor: "#6441A5",
+                    width: 60,
+                    height: 60,
+                    fontSize: 24,
+                    fontWeight: "bold",
+                    mr: 2,
+                  }}
+                >
+                  {getAvatarLetter()}
+                </Avatar>
+                <Typography variant="h6" sx={{ fontWeight: 600, color: "#2a0845" }}>
+                  {nick}
+                </Typography>
+              </Box>
+
+              <Box sx={{ mb: 2 }}>
+                <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
+                  <DirectionsCarIcon sx={{ color: "#6441A5", mr: 1 }} />
+                  <Typography variant="body2" sx={{ color: "#666" }}>
+                    <strong>Vehicle ID:</strong> {vehicleId}
+                  </Typography>
+                </Box>
+
+                <Box sx={{ display: "flex", alignItems: "center" }}>
+                  <CalendarMonthIcon sx={{ color: "#6441A5", mr: 1 }} />
+                  <Typography variant="body2" sx={{ color: "#666" }}>
+                    <strong>Data Inizio:</strong> {initDate}
+                  </Typography>
+                </Box>
+              </Box>
+
               <GlassButton
                 size="medium"
                 onClick={handleEditProfile}
@@ -352,7 +416,7 @@ const Home = () => {
                   color: "white",
                 }}
               >
-                Cambia utente
+                Modifica profilo
               </GlassButton>
             </Box>
           </Popover>
@@ -362,26 +426,42 @@ const Home = () => {
       {/* Contenuto principale */}
       <Fade in={!loading} timeout={1000}>
         <Box sx={{ position: "relative", zIndex: 1, textAlign: "center", width: "100%", px: 2 }}>
+          <Box sx={{ position: "relative", display: "inline-block", mb: 6 }}>
+            <Typography
+              variant="h3"
+              gutterBottom
+              sx={{
+                fontWeight: "700",
+                color: "#fff",
+                backdropFilter: "blur(8px)",
+                background: "rgba(255, 255, 255, 0.1)",
+                border: "1px solid rgba(255, 255, 255, 0.2)",
+                px: 4,
+                py: 2,
+                borderRadius: "20px",
+                boxShadow: "0px 4px 15px rgba(0,0,0,0.2)",
+                maxWidth: "600px",
+                mx: "auto",
+                textShadow: "0 2px 10px rgba(0,0,0,0.2)",
+                position: "relative",
+                zIndex: 1,
+              }}
+            >
+              Blockchain IoT Security
+            </Typography>
+            <GlowingBorder />
+          </Box>
+
           <Typography
-            variant="h3"
-            gutterBottom
+            variant="h5"
             sx={{
-              fontWeight: "700",
-              color: "#fff",
-              backdropFilter: "blur(8px)",
-              background: "rgba(255, 255, 255, 0.1)",
-              border: "1px solid rgba(255, 255, 255, 0.2)",
-              px: 4,
-              py: 2,
-              borderRadius: "20px",
-              boxShadow: "0px 4px 15px rgba(0,0,0,0.2)",
-              mb: 6,
-              maxWidth: "600px",
-              mx: "auto",
-              textShadow: "0 2px 10px rgba(0,0,0,0.2)",
+              fontWeight: "500",
+              color: "rgba(255, 255, 255, 0.8)",
+              mb: 4,
+              textShadow: "0 2px 5px rgba(0,0,0,0.2)",
             }}
           >
-            Scegli la piattaforma
+            Scegli la piattaforma per visualizzare i dati
           </Typography>
 
           <Box
@@ -395,19 +475,9 @@ const Home = () => {
             }}
           >
             <Zoom in={!loading} style={{ transitionDelay: !loading ? "300ms" : "0ms" }}>
-              <GlassCard
-                sx={{
-                  width: isMobile ? "90%" : 420,
-                  height: 420,
-                  position: "relative",
-                  overflow: "hidden",
-                }}
-              >
+              <PlatformCard platform="sui">
                 <CardActionArea
-                  onClick={() => {
-                    console.log("Navigating to /sui")
-                    navigate("/sui")
-                  }}
+                  onClick={() => handleNavigate("/sui")}
                   sx={{
                     height: "100%",
                     display: "flex",
@@ -416,43 +486,47 @@ const Home = () => {
                     background: "rgba(255, 255, 255, 0.05)",
                     position: "relative",
                     zIndex: 1,
-                    "&::before": {
-                      content: '""',
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      background: "linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%)",
-                      zIndex: -1,
-                    },
                   }}
                 >
                   <Box
                     sx={{
                       position: "absolute",
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      background: "radial-gradient(circle at center, rgba(168,101,201,0.2) 0%, rgba(42,8,69,0) 70%)",
-                      opacity: 0.7,
-                      zIndex: -1,
+                      top: 16,
+                      right: 16,
+                      bgcolor: "rgba(255,255,255,0.1)",
+                      borderRadius: "50%",
+                      p: 1,
                     }}
-                  />
-                  <CardMedia
-                    component="img"
-                    image="/sui-logo.png"
-                    alt="SUI"
+                  >
+                    <SecurityIcon sx={{ color: "white" }} />
+                  </Box>
+
+                  <Box
                     sx={{
-                      width: "60%",
+                      position: "relative",
+                      width: "100%",
                       height: "60%",
-                      objectFit: "contain",
-                      mx: "auto",
-                      filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.3))",
-                      animation: `${floatAnimation} 4s ease-in-out infinite`,
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: "center",
                     }}
-                  />
+                  >
+                    <CardMedia
+                      component="img"
+                      image="/sui-logo.png"
+                      alt="SUI"
+                      sx={{
+                        width: "60%",
+                        height: "auto",
+                        objectFit: "contain",
+                        filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.3))",
+                        transition: "transform 0.5s ease",
+                        "&:hover": {
+                          transform: "scale(1.05)",
+                        },
+                      }}
+                    />
+                  </Box>
                   <CardContent>
                     <Typography
                       variant="h4"
@@ -462,29 +536,59 @@ const Home = () => {
                         fontWeight: 700,
                         textShadow: "0 2px 10px rgba(0,0,0,0.3)",
                         letterSpacing: "1px",
+                        mb: 1,
                       }}
                     >
                       SUI
                     </Typography>
+                    <Divider sx={{ my: 1.5, bgcolor: "rgba(255,255,255,0.2)" }} />
+                    <Typography
+                      variant="body2"
+                      align="center"
+                      sx={{
+                        color: "rgba(255, 255, 255, 0.8)",
+                        maxWidth: "80%",
+                        mx: "auto",
+                      }}
+                    >
+                      Esplora i dati sulla blockchain SUI con visualizzazioni avanzate e decrittazione sicura
+                    </Typography>
+
+                    <Box sx={{ mt: 2, display: "flex", justifyContent: "center", gap: 1 }}>
+                      <Box
+                        sx={{
+                          px: 1.5,
+                          py: 0.5,
+                          bgcolor: "rgba(255,255,255,0.1)",
+                          borderRadius: 2,
+                          fontSize: "0.7rem",
+                          color: "white",
+                        }}
+                      >
+                        Blockchain
+                      </Box>
+                      <Box
+                        sx={{
+                          px: 1.5,
+                          py: 0.5,
+                          bgcolor: "rgba(255,255,255,0.1)",
+                          borderRadius: 2,
+                          fontSize: "0.7rem",
+                          color: "white",
+                        }}
+                      >
+                        Encrypted
+                      </Box>
+                    </Box>
                   </CardContent>
                 </CardActionArea>
-              </GlassCard>
+              </PlatformCard>
             </Zoom>
 
             <Zoom in={!loading} style={{ transitionDelay: !loading ? "600ms" : "0ms" }}>
-              <GlassCard
-                sx={{
-                  width: isMobile ? "90%" : 420,
-                  height: 420,
-                  position: "relative",
-                  overflow: "hidden",
-                }}
-              >
+              <PlatformCard platform="iota">
                 <CardActionArea
-                  onClick={() => {
-                    console.log("Navigating to /iota")
-                    navigate("/iota")
-                  }}
+                  onClick={() => handleNavigate("/iota")}
                   sx={{
                     height: "100%",
                     display: "flex",
@@ -493,43 +597,47 @@ const Home = () => {
                     background: "rgba(255, 255, 255, 0.05)",
                     position: "relative",
                     zIndex: 1,
-                    "&::before": {
-                      content: '""',
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      background: "linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%)",
-                      zIndex: -1,
-                    },
                   }}
                 >
                   <Box
                     sx={{
                       position: "absolute",
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      background: "radial-gradient(circle at center, rgba(216,181,255,0.2) 0%, rgba(42,8,69,0) 70%)",
-                      opacity: 0.7,
-                      zIndex: -1,
+                      top: 16,
+                      right: 16,
+                      bgcolor: "rgba(255,255,255,0.1)",
+                      borderRadius: "50%",
+                      p: 1,
                     }}
-                  />
-                  <CardMedia
-                    component="img"
-                    image="/iota-logo.png"
-                    alt="IOTA"
+                  >
+                    <SecurityIcon sx={{ color: "white" }} />
+                  </Box>
+
+                  <Box
                     sx={{
-                      width: "60%",
+                      position: "relative",
+                      width: "100%",
                       height: "60%",
-                      objectFit: "contain",
-                      mx: "auto",
-                      filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.3))",
-                      animation: `${floatAnimation} 4s ease-in-out infinite 1s`,
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: "center",
                     }}
-                  />
+                  >
+                    <CardMedia
+                      component="img"
+                      image="/iota-logo.png"
+                      alt="IOTA"
+                      sx={{
+                        width: "60%",
+                        height: "auto",
+                        objectFit: "contain",
+                        filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.3))",
+                        transition: "transform 0.5s ease",
+                        "&:hover": {
+                          transform: "scale(1.05)",
+                        },
+                      }}
+                    />
+                  </Box>
                   <CardContent>
                     <Typography
                       variant="h4"
@@ -539,14 +647,87 @@ const Home = () => {
                         fontWeight: 700,
                         textShadow: "0 2px 10px rgba(0,0,0,0.3)",
                         letterSpacing: "1px",
+                        mb: 1,
                       }}
                     >
                       IOTA
                     </Typography>
+                    <Divider sx={{ my: 1.5, bgcolor: "rgba(255,255,255,0.2)" }} />
+                    <Typography
+                      variant="body2"
+                      align="center"
+                      sx={{
+                        color: "rgba(255, 255, 255, 0.8)",
+                        maxWidth: "80%",
+                        mx: "auto",
+                      }}
+                    >
+                      Analizza i dati IoT sulla rete IOTA con strumenti di visualizzazione e decrittazione avanzati
+                    </Typography>
+
+                    <Box sx={{ mt: 2, display: "flex", justifyContent: "center", gap: 1 }}>
+                      <Box
+                        sx={{
+                          px: 1.5,
+                          py: 0.5,
+                          bgcolor: "rgba(255,255,255,0.1)",
+                          borderRadius: 2,
+                          fontSize: "0.7rem",
+                          color: "white",
+                        }}
+                      >
+                        IoT
+                      </Box>
+                      <Box
+                        sx={{
+                          px: 1.5,
+                          py: 0.5,
+                          bgcolor: "rgba(255,255,255,0.1)",
+                          borderRadius: 2,
+                          fontSize: "0.7rem",
+                          color: "white",
+                        }}
+                      >
+                        Tangle
+                      </Box>
+                    </Box>
                   </CardContent>
                 </CardActionArea>
-              </GlassCard>
+              </PlatformCard>
             </Zoom>
+          </Box>
+
+          {/* Footer */}
+          <Box
+            sx={{
+              position: "absolute",
+              bottom: 20,
+              left: 0,
+              width: "100%",
+              textAlign: "center",
+              color: "rgba(255,255,255,0.6)",
+              fontSize: "0.8rem",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 1,
+            }}
+          >
+            <Tooltip title="Informazioni sul progetto">
+              <Button
+                startIcon={<InfoIcon />}
+                sx={{
+                  color: "rgba(255,255,255,0.8)",
+                  textTransform: "none",
+                  fontSize: "0.8rem",
+                  "&:hover": {
+                    background: "rgba(255,255,255,0.1)",
+                  },
+                }}
+              >
+                Blockchain IoT Security Dashboard v1.0
+              </Button>
+            </Tooltip>
           </Box>
 
           {/* Dialog per il login iniziale */}
@@ -563,7 +744,12 @@ const Home = () => {
               },
             }}
           >
-            <StyledDialogTitle>Accedi al tuo profilo</StyledDialogTitle>
+            <StyledDialogTitle>
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                <AccountCircleIcon sx={{ mr: 1 }} />
+                Accedi al tuo profilo
+              </Box>
+            </StyledDialogTitle>
             <DialogContent sx={{ p: 3 }}>
               <Box sx={{ my: 1 }}>
                 <TextField
@@ -628,15 +814,18 @@ const Home = () => {
                 borderRadius: "20px",
                 background: "rgba(255, 255, 255, 0.95)",
                 backdropFilter: "blur(10px)",
-                boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2)',255,255,0.95)",
-                backdropFilter: "blur(10px)",
                 boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2)",
                 border: "1px solid rgba(255, 255, 255, 0.2)",
                 overflow: "hidden",
               },
             }}
           >
-            <StyledDialogTitle>Modifica le tue credenziali</StyledDialogTitle>
+            <StyledDialogTitle>
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                <EditIcon sx={{ mr: 1 }} />
+                Modifica le tue credenziali
+              </Box>
+            </StyledDialogTitle>
             <DialogContent sx={{ p: 3 }}>
               <Box sx={{ my: 1 }}>
                 <TextField

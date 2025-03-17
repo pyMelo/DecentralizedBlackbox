@@ -1,248 +1,39 @@
 "use client"
+
 import { useState, useEffect } from "react"
 import {
   Box,
   Typography,
-  Button,
-  TextField,
   CircularProgress,
-  Paper,
   Alert,
   IconButton,
-  Chip,
-  Divider,
-  Tooltip,
   Fade,
   useMediaQuery,
-  Switch,
-  FormControlLabel,
-  Card,
   CardContent,
   Grid,
-  Drawer,
-  AppBar,
-  Toolbar,
+  Tooltip,
 } from "@mui/material"
 import { SuiClient } from "@mysten/sui/client"
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  Legend,
-  ResponsiveContainer,
-  Area,
-  AreaChart,
-} from "recharts"
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday"
 import LockIcon from "@mui/icons-material/Lock"
-import LockOpenIcon from "@mui/icons-material/LockOpen"
 import RefreshIcon from "@mui/icons-material/Refresh"
-import DarkModeIcon from "@mui/icons-material/DarkMode"
-import LightModeIcon from "@mui/icons-material/LightMode"
-import HomeIcon from "@mui/icons-material/Home"
-import SettingsIcon from "@mui/icons-material/Settings"
-import InfoIcon from "@mui/icons-material/Info"
-import MenuIcon from "@mui/icons-material/Menu"
-import CloseIcon from "@mui/icons-material/Close"
-import { styled } from "@mui/system"
+import LockOpenIcon from "@mui/icons-material/LockOpen"
 import { useNavigate } from "react-router-dom"
 
-//
-// ----- UTILITIES -----
-//
+// Componenti condivisi
+import AppHeader from "./common/AppHeader"
+import AppDrawer from "./common/AppDrawer"
+import ChartTabs from "./common/ChartTabs"
+import TemperatureChart from "./charts/TemperatureChart"
+import GyroscopeChart from "./charts/GyroscopeChart"
+import AccelerometerChart from "./charts/AccelerometerChart"
+import GPSChart from "./charts/GPSChart"
 
-const getEpochUTC = (dateStr) => {
-  const utcString = `${dateStr}T00:00:00Z`
-  return Math.floor(new Date(utcString).getTime() / 1000)
-}
+// Componenti UI stilizzati
+import { GlassCard, StyledButton, StyledTextField, DataCard } from "./ui/StyledComponents"
 
-const hexStringToBytes = (hexString) => {
-  const clean = hexString.replace(/\s+/g, "")
-  const length = clean.length / 2
-  const result = new Uint8Array(length)
-  for (let i = 0; i < length; i++) {
-    result[i] = Number.parseInt(clean.substr(i * 2, 2), 16)
-  }
-  return result
-}
-
-const sha256 = async (data) => {
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data)
-  return new Uint8Array(hashBuffer)
-}
-
-const generateDailyKeySHA256 = async (masterKeyHex, vehicleId, initDate, fetchDate) => {
-  // Usa variabili locali per non modificare i parametri
-  const mk = masterKeyHex.trim().toLowerCase();
-  const vid = vehicleId.trim();
-
-  const initEpoch = getEpochUTC(initDate);
-  const fetchEpoch = getEpochUTC(fetchDate);
-  const diffDays = Math.max(0, Math.floor((fetchEpoch - initEpoch) / 86400));
-
-  console.log("Initial Epoch:", initEpoch);
-  console.log("Fetch Epoch:", fetchEpoch);
-  console.log("Diff Days:", diffDays);
-
-  const masterKeyBytes = hexStringToBytes(mk);
-  const vehicleIdBytes = new TextEncoder().encode(vid);
-
-  // Prepara l'array di 8 byte per initEpoch
-  let initEpochVal = initEpoch;
-  const initEpochBytes = new Uint8Array(8);
-  for (let i = 7; i >= 0; i--) {
-    initEpochBytes[i] = initEpochVal % 256;
-    initEpochVal = Math.floor(initEpochVal / 256);
-  }
-
-  console.log("Master Key Bytes:", Array.from(masterKeyBytes).map(b => b.toString(16).padStart(2, "0")).join(""));
-  console.log("Vehicle ID Bytes:", Array.from(vehicleIdBytes).map(b => b.toString(16).padStart(2, "0")).join(""));
-  console.log("Init Epoch Bytes:", Array.from(initEpochBytes).map(b => b.toString(16).padStart(2, "0")).join(""));
-
-  // Crea l'array di dati da hashare
-  const data = new Uint8Array([...masterKeyBytes, ...vehicleIdBytes, ...initEpochBytes]);
-  console.log("Data to hash for Day 1:", Array.from(data).map(b => b.toString(16).padStart(2, "0")).join(""));
-  
-  const hash = await sha256(data);
-  let dailyKey = hash.slice(0, 16);
-
-  console.log(`Timestamp used for Daily Key 1: ${initEpoch}`);
-  console.log(
-    `Daily Key 1: ${Array.from(dailyKey)
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("")}`,
-  );
-
-  // Genera le successive Daily Key
-  for (let i = 0; i < diffDays; i++) {
-    const nextEpoch = initEpoch + (i + 1) * 86400;
-    let nextEpochVal = nextEpoch;
-    const nextEpochBytes = new Uint8Array(8);
-    for (let j = 7; j >= 0; j--) {
-      nextEpochBytes[j] = nextEpochVal % 256;
-      nextEpochVal = Math.floor(nextEpochVal / 256);
-    }
-    
-    console.log(`Next Epoch Bytes for Day ${i+2}:`, Array.from(nextEpochBytes).map(b => b.toString(16).padStart(2, "0")).join(""));
-    
-    const iterationData = new Uint8Array([...dailyKey, ...vehicleIdBytes, ...nextEpochBytes]);
-    console.log(`Data to hash for Day ${i+2}:`, Array.from(iterationData).map(b => b.toString(16).padStart(2, "0")).join(""));
-    
-    const iterationHash = await sha256(iterationData);
-    dailyKey = iterationHash.slice(0, 16);
-    console.log(`Timestamp used for Daily Key ${i + 2}: ${nextEpoch}`);
-    console.log(
-      `Daily Key ${i + 2}: ${Array.from(dailyKey)
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("")}`,
-    );
-  }
-
-  return Array.from(dailyKey)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-};
-
-//
-// ----- STYLED COMPONENTS -----
-//
-
-const GlassCard = styled(Card)(({ theme, darkMode }) => ({
-  background: darkMode ? "rgba(30, 30, 40, 0.7)" : "rgba(255, 255, 255, 0.7)",
-  backdropFilter: "blur(10px)",
-  borderRadius: "16px",
-  border: darkMode ? "1px solid rgba(255, 255, 255, 0.1)" : "1px solid rgba(255, 255, 255, 0.5)",
-  boxShadow: darkMode ? "0 8px 32px rgba(0, 0, 0, 0.3)" : "0 8px 32px rgba(0, 0, 0, 0.1)",
-  transition: "all 0.3s ease",
-  overflow: "hidden",
-  height: "100%",
-}))
-
-const StyledButton = styled(Button)(({ theme, darkMode }) => ({
-  borderRadius: "12px",
-  padding: "10px 20px",
-  fontWeight: 600,
-  textTransform: "none",
-  boxShadow: darkMode ? "0 4px 12px rgba(0, 0, 0, 0.3)" : "0 4px 12px rgba(0, 0, 0, 0.1)",
-  transition: "all 0.3s ease",
-  "&:hover": {
-    transform: "translateY(-2px)",
-    boxShadow: darkMode ? "0 6px 16px rgba(0, 0, 0, 0.4)" : "0 6px 16px rgba(0, 0, 0, 0.2)",
-  },
-}))
-
-const StyledTextField = styled(TextField)(({ theme, darkMode }) => ({
-  "& .MuiOutlinedInput-root": {
-    borderRadius: "12px",
-    background: darkMode ? "rgba(30, 30, 40, 0.5)" : "rgba(255, 255, 255, 0.5)",
-    "& fieldset": {
-      borderColor: darkMode ? "rgba(255, 255, 255, 0.2)" : "rgba(0, 0, 0, 0.2)",
-    },
-    "&:hover fieldset": {
-      borderColor: darkMode ? "rgba(255, 255, 255, 0.3)" : "rgba(0, 0, 0, 0.3)",
-    },
-    "&.Mui-focused fieldset": {
-      borderColor: "#6441A5",
-    },
-  },
-  "& .MuiInputLabel-root": {
-    color: darkMode ? "rgba(255, 255, 255, 0.7)" : "rgba(0, 0, 0, 0.7)",
-  },
-  "& .MuiInputBase-input": {
-    color: darkMode ? "white" : "black",
-  },
-}))
-
-const StyledChip = styled(Chip)(({ theme, darkMode, active }) => ({
-  borderRadius: "20px",
-  fontWeight: 600,
-  background: active
-    ? darkMode
-      ? "rgba(100, 65, 165, 0.8)"
-      : "rgba(100, 65, 165, 0.9)"
-    : darkMode
-      ? "rgba(30, 30, 40, 0.5)"
-      : "rgba(255, 255, 255, 0.5)",
-  color: active ? "white" : darkMode ? "rgba(255, 255, 255, 0.7)" : "rgba(0, 0, 0, 0.7)",
-  border: active
-    ? "1px solid rgba(255, 255, 255, 0.3)"
-    : darkMode
-      ? "1px solid rgba(255, 255, 255, 0.1)"
-      : "1px solid rgba(0, 0, 0, 0.1)",
-  boxShadow: active ? "0 4px 12px rgba(100, 65, 165, 0.3)" : "none",
-  transition: "all 0.3s ease",
-  "&:hover": {
-    background: active
-      ? darkMode
-        ? "rgba(100, 65, 165, 0.9)"
-        : "rgba(100, 65, 165, 1)"
-      : darkMode
-        ? "rgba(50, 50, 60, 0.7)"
-        : "rgba(240, 240, 240, 0.9)",
-  },
-}))
-
-const DataCard = styled(Paper)(({ theme, darkMode }) => ({
-  padding: "16px",
-  borderRadius: "16px",
-  background: darkMode ? "rgba(30, 30, 40, 0.7)" : "rgba(255, 255, 255, 0.7)",
-  backdropFilter: "blur(10px)",
-  border: darkMode ? "1px solid rgba(255, 255, 255, 0.1)" : "1px solid rgba(255, 255, 255, 0.5)",
-  boxShadow: darkMode ? "0 8px 32px rgba(0, 0, 0, 0.3)" : "0 8px 32px rgba(0, 0, 0, 0.1)",
-  transition: "all 0.3s ease",
-  marginBottom: "16px",
-  "&:hover": {
-    transform: "translateY(-2px)",
-    boxShadow: darkMode ? "0 10px 40px rgba(0, 0, 0, 0.4)" : "0 10px 40px rgba(0, 0, 0, 0.15)",
-  },
-}))
-
-//
-// ----- SUI Component -----
-//
+// Utilità di crittografia
+import { hexStringToBytes, generateDailyKeySHA256, decryptWithAES } from "../utils/crypto"
 
 const SUI = () => {
   const navigate = useNavigate()
@@ -278,93 +69,102 @@ const SUI = () => {
     setDarkMode(prefersDarkMode)
   }, [])
 
+  const toggleDarkMode = () => {
+    setDarkMode(!darkMode)
+  }
+
+  const toggleDrawer = () => {
+    setDrawerOpen(!drawerOpen)
+  }
+
   const handleFetchSensorData = async () => {
     if (!packageId || !date) {
       setError("Inserisci il Package ID e la Data.")
       return
     }
-  
+
     setLoading(true)
     setError("")
     setSuccess("")
-  
+
     const client = new SuiClient({ url: "https://fullnode.devnet.sui.io:443" })
-  
+
     try {
       const txResponse = await client.queryTransactionBlocks({
         filter: { InputObject: packageId },
         limit: 100,
         options: { showInput: true, showEffects: true, showEvents: true },
       })
-  
+
       const transactions = txResponse.data || []
-  
+
       // Usa la data selezionata invece della data attuale
-      const selectedDate = new Date(date) 
+      const selectedDate = new Date(date)
       const selectedStart = selectedDate.setHours(0, 0, 0, 0)
       const selectedEnd = selectedDate.setHours(23, 59, 59, 999)
-  
+
       // Filtra le transazioni in base alla data selezionata
       const filteredTx = transactions.filter((tx) => {
         const ts = Number(tx.timestampMs)
         return ts >= selectedStart && ts <= selectedEnd
       })
-  
+
       if (filteredTx.length === 0) {
         setError(`Nessuna transazione trovata per il ${date}.`)
         setSensorData([])
         return
       }
-  
-      // Estrarre i dati dai payload come prima
-      const sensorRecords = filteredTx.map((tx) => {
-        const hexData = tx.transaction?.data?.transaction?.inputs[2]?.value || ""
-        const rawBytes = hexStringToBytes(hexData)
-  
-        if (rawBytes.length < 29) return null // Controlla che il payload sia valido
-  
-        const temperature = rawBytes[18]
-        const gyroX = (rawBytes[20] > 127 ? rawBytes[20] - 256 : rawBytes[20]) / 100
-        const gyroY = (rawBytes[21] > 127 ? rawBytes[21] - 256 : rawBytes[21]) / 100
-        const gyroZ = (rawBytes[22] > 127 ? rawBytes[22] - 256 : rawBytes[22]) / 100
-        const accel = rawBytes[25]
-        const gpsLat = rawBytes[27]
-        const gpsLon = rawBytes[28]
-  
-        return {
-          time: new Date(Number(tx.timestampMs)).toLocaleTimeString(),
-          timestamp: Number(tx.timestampMs) / 1000,
-          temperature,
-          gyroX,
-          gyroY,
-          gyroZ,
-          accel,
-          gpsLat,
-          gpsLon,
-          rawData: {
-            effectiveIV: rawBytes.slice(0, 16),
-            clearBlock: {
-              clearBlockLength: rawBytes[16],
-              sensorMarker: rawBytes[17],
-              temperature,
-              gyroMarker: rawBytes[19],
-              gx: gyroX,
-              gy: gyroY,
-              gz: gyroZ,
+
+      // Estrarre i dati dai payload
+      const sensorRecords = filteredTx
+        .map((tx) => {
+          const hexData = tx.transaction?.data?.transaction?.inputs[1]?.value || ""
+          const rawBytes = hexStringToBytes(hexData)
+
+          if (rawBytes.length < 29) return null // Controlla che il payload sia valido
+
+          const temperature = rawBytes[18]
+          const gyroX = (rawBytes[20] > 127 ? rawBytes[20] - 256 : rawBytes[20]) / 100
+          const gyroY = (rawBytes[21] > 127 ? rawBytes[21] - 256 : rawBytes[21]) / 100
+          const gyroZ = (rawBytes[22] > 127 ? rawBytes[22] - 256 : rawBytes[22]) / 100
+          const accel = rawBytes[25]
+          const gpsLat = rawBytes[27]
+          const gpsLon = rawBytes[28]
+
+          return {
+            time: new Date(Number(tx.timestampMs)).toLocaleTimeString(),
+            timestamp: Number(tx.timestampMs) / 1000,
+            temperature,
+            gyroX,
+            gyroY,
+            gyroZ,
+            accel,
+            gpsLat,
+            gpsLon,
+            rawData: {
+              effectiveIV: rawBytes.slice(0, 16),
+              clearBlock: {
+                clearBlockLength: rawBytes[16],
+                sensorMarker: rawBytes[17],
+                temperature,
+                gyroMarker: rawBytes[19],
+                gx: gyroX,
+                gy: gyroY,
+                gz: gyroZ,
+              },
+              encryptedBlock: {
+                encryptedBlockLength: rawBytes[23],
+                encryptedData: rawBytes.slice(24, 24 + rawBytes[23]),
+                decryptedData: null,
+              },
             },
-            encryptedBlock: {
-              encryptedBlockLength: rawBytes[23],
-              encryptedData: rawBytes.slice(24, 24 + rawBytes[23]),
-              decryptedData: null,
-            },
-          },
-        }
-      }).filter(record => record !== null) 
-  
+          }
+        })
+        .filter((record) => record !== null)
+
       setSensorData(sensorRecords)
       setShowGroup2(false)
       setSuccess(`Recuperati ${sensorRecords.length} record di dati.`)
-      console.log("Dati ottenuti:", sensorRecords)
     } catch (error) {
       console.error("Errore nel recupero dei dati:", error)
       setError("Errore nel recupero dei dati: " + error.message)
@@ -372,85 +172,47 @@ const SUI = () => {
       setLoading(false)
     }
   }
-  
 
   const handleDecryptData = async () => {
     if (!masterKey || !vehicleId || !initDate) {
       setError("Inserisci la Master Key, Vehicle ID e Data di Inizio per decrittare i dati.")
       return
     }
-  
+
     setLoading(true)
     setError("")
-  
+
     try {
       const dailyKey = await generateDailyKeySHA256(masterKey, vehicleId, initDate, date)
       console.log("Computed Daily Key:", dailyKey)
-  
+
       const decryptedSensorData = await Promise.all(
         sensorData.map(async (record) => {
-          const keyBuffer = hexStringToBytes(dailyKey)
-          const cryptoKey = await crypto.subtle.importKey(
-            "raw",
-            keyBuffer,
-            { name: "AES-CTR" },
-            false,
-            ["decrypt"]
-          )
-  
-          const encryptedData = record.rawData.encryptedBlock.encryptedData
-          const effectiveIV = record.rawData.effectiveIV // IV from the payload
-  
           try {
-            const decryptedBuffer = await crypto.subtle.decrypt(
-              { name: "AES-CTR", counter: effectiveIV, length: 128 },
-              cryptoKey,
-              encryptedData
+            const decryptedBytes = await decryptWithAES(
+              record.rawData.encryptedBlock.encryptedData,
+              record.rawData.effectiveIV,
+              dailyKey,
             )
-            
-            const decryptedBytes = new Uint8Array(decryptedBuffer)
-            
-            // Log del payload decifrato in hex per debug
-            console.log("Decrypted Bytes:", Array.from(decryptedBytes).map(b => b.toString(16).padStart(2, "0")).join(""))
-            
+
+            if (!decryptedBytes) throw new Error("Decryption failed")
+
             // Analisi del payload decifrato
-            // Consideriamo un formato di payload decifrato come:
-            // [marker_accel (1 byte), acceleration (1 byte), marker_gps (1 byte), latitude (1 byte), longitude (1 byte)]
-            
-            // Cerchiamo marker 0x04 per accelerometro
-            let acceleration = null;
-            let latitude = null;
-            let longitude = null;
-            
-            try {
-              console.log("Encrypted Data (Before Decryption):", Array.from(encryptedData).map(b => b.toString(16).padStart(2, "0")).join(""));
-              
-              const decryptedBuffer = await crypto.subtle.decrypt(
-                  { name: "AES-CTR", counter: effectiveIV, length: 128 },
-                  cryptoKey,
-                  encryptedData
-              );
-          
-              const decryptedBytes = new Uint8Array(decryptedBuffer);
-          
-              console.log("Decrypted Bytes:", Array.from(decryptedBytes).map(b => b.toString(16).padStart(2, "0")).join(""));
-          } catch (decryptError) {
-              console.error("Failed to decrypt data:", decryptError);
-          }
-          
+            let acceleration = null
+            let latitude = null
+            let longitude = null
+
             // Scansione del payload per trovare i marker
             for (let i = 0; i < decryptedBytes.length; i++) {
               if (decryptedBytes[i] === 0x04 && i + 1 < decryptedBytes.length) {
-                acceleration = decryptedBytes[i + 1];
-                console.log("Found acceleration marker at index", i, "with value", acceleration);
+                acceleration = decryptedBytes[i + 1]
               }
               if (decryptedBytes[i] === 0x05 && i + 2 < decryptedBytes.length) {
-                latitude = decryptedBytes[i + 1];
-                longitude = decryptedBytes[i + 2];
-                console.log("Found GPS marker at index", i, "with values", latitude, longitude);
+                latitude = decryptedBytes[i + 1]
+                longitude = decryptedBytes[i + 2]
               }
             }
-  
+
             return {
               ...record,
               rawData: {
@@ -461,18 +223,17 @@ const SUI = () => {
                     acceleration,
                     latitude,
                     longitude,
-                    rawHex: Array.from(decryptedBytes).map(b => b.toString(16).padStart(2, "0")).join("")
-                  }
-                }
-              }
+                  },
+                },
+              },
             }
           } catch (decryptError) {
             console.error("Failed to decrypt data:", decryptError)
             return record
           }
-        })
+        }),
       )
-  
+
       setSensorData(decryptedSensorData)
       setShowGroup2(true)
       setSuccess("Dati decriptati con successo!")
@@ -484,97 +245,35 @@ const SUI = () => {
     }
   }
 
-
-  const toggleDrawer = (open) => (event) => {
-    if (event.type === "keydown" && (event.key === "Tab" || event.key === "Shift")) {
-      return
-    }
-    setDrawerOpen(open)
-  }
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-  };
-
-  const renderDrawerContent = () => (
-    <Box
-      sx={{
-        width: 250,
-        height: "100%",
-        background: darkMode ? "#1E1E28" : "#f5f5f5",
-        color: darkMode ? "white" : "black",
-        p: 2,
-      }}
-      role="presentation"
-      onClick={toggleDrawer(false)}
-      onKeyDown={toggleDrawer(false)}
-    >
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
-        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-          Menu
-        </Typography>
-        <IconButton onClick={toggleDrawer(false)}>
-          <CloseIcon />
-        </IconButton>
-      </Box>
-      <Divider sx={{ mb: 2 }} />
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Button
-          startIcon={<HomeIcon />}
-          onClick={() => navigate("/")}
-          sx={{ justifyContent: "flex-start", textTransform: "none", fontWeight: 500 }}
-        >
-          Home
-        </Button>
-        <Button
-          startIcon={<SettingsIcon />}
-          sx={{ justifyContent: "flex-start", textTransform: "none", fontWeight: 500 }}
-        >
-          Impostazioni
-        </Button>
-        <Button startIcon={<InfoIcon />} sx={{ justifyContent: "flex-start", textTransform: "none", fontWeight: 500 }}>
-          Informazioni
-        </Button>
-      </Box>
-      <Box sx={{ position: "absolute", bottom: 20, left: 0, width: "100%", px: 2 }}>
-        <FormControlLabel
-          control={
-            <Switch
-              checked={darkMode}
-              onChange={toggleDarkMode}
-              icon={<LightModeIcon />}
-              checkedIcon={<DarkModeIcon />}
-            />
-          }
-          label={darkMode ? "Modalità Chiara" : "Modalità Scura"}
-        />
-      </Box>
-    </Box>
-  )
-
   // Dati per i grafici
-  // Dati per i grafici
-const temperatureChartData = sensorData.map((item) => ({
-  time: item.time,
-  value: item.temperature,
-}));
+  const temperatureChartData = sensorData.map((item) => ({
+    time: item.time,
+    value: item.temperature,
+  }))
 
-const gyroChartData = sensorData.map((item) => ({
-  time: item.time,
-  gx: item.gyroX,
-  gy: item.gyroY,
-  gz: item.gyroZ,
-}));
+  const gyroChartData = sensorData.map((item) => ({
+    time: item.time,
+    gx: item.gyroX,
+    gy: item.gyroY,
+    gz: item.gyroZ,
+  }))
 
-const accelChartData = sensorData.map((item) => ({
-  time: item.time,
-  value: item.rawData?.encryptedBlock?.decryptedData?.acceleration || 0,
-}));
+  const accelChartData = sensorData.map((item) => ({
+    time: item.time,
+    value: item.rawData?.encryptedBlock?.decryptedData?.acceleration || 0,
+  }))
 
-const gpsChartData = sensorData.map((item) => ({
-  time: item.time,
-  latitude: item.rawData?.encryptedBlock?.decryptedData?.latitude || 0,
-  longitude: item.rawData?.encryptedBlock?.decryptedData?.longitude || 0,
-}));
+  const gpsChartData = sensorData.map((item) => ({
+    time: item.time,
+    latitude: item.rawData?.encryptedBlock?.decryptedData?.latitude || 0,
+    longitude: item.rawData?.encryptedBlock?.decryptedData?.longitude || 0,
+  }))
+
+  // Tabs disponibili in base allo stato
+  const availableTabs = showGroup2
+    ? ["Temperatura", "Giroscopio", "Accelerometro", "GPS"]
+    : ["Temperatura", "Giroscopio"]
+
   return (
     <Box
       sx={{
@@ -589,65 +288,22 @@ const gpsChartData = sensorData.map((item) => ({
         transition: "background 0.3s ease",
       }}
     >
-      {/* App Bar */}
-      <AppBar
-        position="sticky"
-        sx={{
-          background: darkMode ? "rgba(30, 30, 40, 0.8)" : "rgba(255, 255, 255, 0.8)",
-          backdropFilter: "blur(10px)",
-          boxShadow: darkMode ? "0 4px 20px rgba(0, 0, 0, 0.3)" : "0 4px 20px rgba(0, 0, 0, 0.1)",
-        }}
-      >
-        <Toolbar>
-          <IconButton
-            edge="start"
-            color="inherit"
-            aria-label="menu"
-            onClick={toggleDrawer(true)}
-            sx={{ mr: 2, color: darkMode ? "white" : "black" }}
-          >
-            <MenuIcon />
-          </IconButton>
-          <Typography
-            variant="h6"
-            component="div"
-            sx={{
-              flexGrow: 1,
-              fontWeight: 700,
-              color: darkMode ? "white" : "black",
-              display: "flex",
-              alignItems: "center",
-              gap: 1,
-            }}
-          >
-            <img
-              src="/sui-logo.png"
-              alt="SUI"
-              style={{
-                height: "30px",
-                width: "auto",
-                filter: darkMode ? "brightness(1.2)" : "none",
-              }}
-            />
-            SUI Dashboard
-          </Typography>
-          <Tooltip title={darkMode ? "Modalità Chiara" : "Modalità Scura"}>
-            <IconButton onClick={toggleDarkMode} sx={{ color: darkMode ? "white" : "black" }}>
-              {darkMode ? <LightModeIcon /> : <DarkModeIcon />}
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Torna alla Home">
-            <IconButton onClick={() => navigate("/")} sx={{ color: darkMode ? "white" : "black" }}>
-              <HomeIcon />
-            </IconButton>
-          </Tooltip>
-        </Toolbar>
-      </AppBar>
+      {/* App Header */}
+      <AppHeader
+        darkMode={darkMode}
+        toggleDarkMode={toggleDarkMode}
+        toggleDrawer={() => setDrawerOpen(true)}
+        title="SUI Dashboard"
+        logoSrc="./sui-logo.png"
+      />
 
       {/* Drawer */}
-      <Drawer anchor="left" open={drawerOpen} onClose={toggleDrawer(false)}>
-        {renderDrawerContent()}
-      </Drawer>
+      <AppDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        darkMode={darkMode}
+        toggleDarkMode={toggleDarkMode}
+      />
 
       {/* Main Content */}
       <Box sx={{ p: 3 }}>
@@ -793,137 +449,20 @@ const gpsChartData = sensorData.map((item) => ({
           {sensorData.length > 0 && (
             <>
               <Grid item xs={12}>
-                <Box sx={{ mt: 2, mb: 3, display: "flex", justifyContent: "center" }}>
-                  <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", justifyContent: "center" }}>
-                    <StyledChip
-                      label="Temperatura"
-                      clickable
-                      onClick={() => setActiveTab(0)}
-                      active={activeTab === 0}
-                      darkMode={darkMode}
-                    />
-                    <StyledChip
-                      label="Giroscopio"
-                      clickable
-                      onClick={() => setActiveTab(1)}
-                      active={activeTab === 1}
-                      darkMode={darkMode}
-                    />
-                    {showGroup2 && (
-                      <>
-                        <StyledChip
-                          label="Accelerometro"
-                          clickable
-                          onClick={() => setActiveTab(2)}
-                          active={activeTab === 2}
-                          darkMode={darkMode}
-                        />
-                        <StyledChip
-                          label="GPS"
-                          clickable
-                          onClick={() => setActiveTab(3)}
-                          active={activeTab === 3}
-                          darkMode={darkMode}
-                        />
-                      </>
-                    )}
-                  </Box>
-                </Box>
+                <ChartTabs activeTab={activeTab} setActiveTab={setActiveTab} tabs={availableTabs} darkMode={darkMode} />
               </Grid>
 
               {/* Chart Panels */}
               <Grid item xs={12}>
                 <Fade in={activeTab === 0} timeout={500}>
                   <div style={{ display: activeTab === 0 ? "block" : "none", height: "400px" }}>
-                    <GlassCard darkMode={darkMode}>
-                      <CardContent>
-                        <Typography
-                          variant="h6"
-                          sx={{
-                            mb: 2,
-                            textAlign: "center",
-                            fontWeight: 600,
-                            color: darkMode ? "white" : "black",
-                          }}
-                        >
-                          Grafico Temperatura
-                        </Typography>
-                        <ResponsiveContainer width="100%" height={300}>
-                          <AreaChart data={temperatureChartData}>
-                            <defs>
-                              <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#6441A5" stopOpacity={0.8} />
-                                <stop offset="95%" stopColor="#6441A5" stopOpacity={0.1} />
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid
-                              strokeDasharray="3 3"
-                              stroke={darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}
-                            />
-                            <XAxis dataKey="time" stroke={darkMode ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)"} />
-                            <YAxis stroke={darkMode ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)"} />
-                            <RechartsTooltip
-                              contentStyle={{
-                                background: darkMode ? "rgba(30,30,40,0.8)" : "rgba(255,255,255,0.8)",
-                                border: "none",
-                                borderRadius: "8px",
-                                color: darkMode ? "white" : "black",
-                              }}
-                            />
-                            <Area
-                              type="monotone"
-                              dataKey="value"
-                              stroke="#6441A5"
-                              fillOpacity={1}
-                              fill="url(#colorTemp)"
-                              name="Temperatura"
-                            />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      </CardContent>
-                    </GlassCard>
+                    <TemperatureChart data={temperatureChartData} darkMode={darkMode} />
                   </div>
                 </Fade>
 
                 <Fade in={activeTab === 1} timeout={500}>
                   <div style={{ display: activeTab === 1 ? "block" : "none", height: "400px" }}>
-                    <GlassCard darkMode={darkMode}>
-                      <CardContent>
-                        <Typography
-                          variant="h6"
-                          sx={{
-                            mb: 2,
-                            textAlign: "center",
-                            fontWeight: 600,
-                            color: darkMode ? "white" : "black",
-                          }}
-                        >
-                          Grafico Giroscopio
-                        </Typography>
-                        <ResponsiveContainer width="100%" height={300}>
-                          <LineChart data={gyroChartData}>
-                            <CartesianGrid
-                              strokeDasharray="3 3"
-                              stroke={darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}
-                            />
-                            <XAxis dataKey="time" stroke={darkMode ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)"} />
-                            <YAxis stroke={darkMode ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)"} />
-                            <RechartsTooltip
-                              contentStyle={{
-                                background: darkMode ? "rgba(30,30,40,0.8)" : "rgba(255,255,255,0.8)",
-                                border: "none",
-                                borderRadius: "8px",
-                                color: darkMode ? "white" : "black",
-                              }}
-                            />
-                            <Legend />
-                            <Line type="monotone" dataKey="gx" stroke="#8884d8" name="Giroscopio X" />
-                            <Line type="monotone" dataKey="gy" stroke="#82ca9d" name="Giroscopio Y" />
-                            <Line type="monotone" dataKey="gz" stroke="#ffc658" name="Giroscopio Z" />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </CardContent>
-                    </GlassCard>
+                    <GyroscopeChart data={gyroChartData} darkMode={darkMode} />
                   </div>
                 </Fade>
 
@@ -931,101 +470,19 @@ const gpsChartData = sensorData.map((item) => ({
                   <>
                     <Fade in={activeTab === 2} timeout={500}>
                       <div style={{ display: activeTab === 2 ? "block" : "none", height: "400px" }}>
-                        <GlassCard darkMode={darkMode}>
-                          <CardContent>
-                            <Typography
-                              variant="h6"
-                              sx={{
-                                mb: 2,
-                                textAlign: "center",
-                                fontWeight: 600,
-                                color: darkMode ? "white" : "black",
-                              }}
-                            >
-                              Grafico Accelerometro
-                            </Typography>
-                            <ResponsiveContainer width="100%" height={300}>
-                              <AreaChart data={accelChartData}>
-                                <defs>
-                                  <linearGradient id="colorAccel" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#A865C9" stopOpacity={0.8} />
-                                    <stop offset="95%" stopColor="#A865C9" stopOpacity={0.1} />
-                                  </linearGradient>
-                                </defs>
-                                <CartesianGrid
-                                  strokeDasharray="3 3"
-                                  stroke={darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}
-                                />
-                                <XAxis dataKey="time" stroke={darkMode ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)"} />
-                                <YAxis stroke={darkMode ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)"} />
-                                <RechartsTooltip
-                                  contentStyle={{
-                                    background: darkMode ? "rgba(30,30,40,0.8)" : "rgba(255,255,255,0.8)",
-                                    border: "none",
-                                    borderRadius: "8px",
-                                    color: darkMode ? "white" : "black",
-                                  }}
-                                />
-                                <Area
-                                  type="monotone"
-                                  dataKey="value"
-                                  stroke="#A865C9"
-                                  fillOpacity={1}
-                                  fill="url(#colorAccel)"
-                                  name="Accelerometro"
-                                />
-                              </AreaChart>
-                            </ResponsiveContainer>
-                          </CardContent>
-                        </GlassCard>
+                        <AccelerometerChart data={accelChartData} darkMode={darkMode} />
                       </div>
                     </Fade>
 
                     <Fade in={activeTab === 3} timeout={500}>
                       <div style={{ display: activeTab === 3 ? "block" : "none", height: "400px" }}>
-                        <GlassCard darkMode={darkMode}>
-                          <CardContent>
-                            <Typography
-                              variant="h6"
-                              sx={{
-                                mb: 2,
-                                textAlign: "center",
-                                fontWeight: 600,
-                                color: darkMode ? "white" : "black",
-                              }}
-                            >
-                              Grafico GPS
-                            </Typography>
-                            <ResponsiveContainer width="100%" height={300}>
-                              <LineChart data={gpsChartData}>
-                                <CartesianGrid
-                                  strokeDasharray="3 3"
-                                  stroke={darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}
-                                />
-                                <XAxis dataKey="time" stroke={darkMode ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)"} />
-                                <YAxis stroke={darkMode ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)"} />
-                                <RechartsTooltip
-                                  contentStyle={{
-                                    background: darkMode ? "rgba(30,30,40,0.8)" : "rgba(255,255,255,0.8)",
-                                    border: "none",
-                                    borderRadius: "8px",
-                                    color: darkMode ? "white" : "black",
-                                  }}
-                                />
-                                <Legend />
-                                <Line type="monotone" dataKey="latitude" stroke="#82ca9d" name="Latitudine" />
-                                <Line type="monotone" dataKey="longitude" stroke="#ffc658" name="Longitudine" />
-                              </LineChart>
-                            </ResponsiveContainer>
-                          </CardContent>
-                        </GlassCard>
+                        <GPSChart data={gpsChartData} darkMode={darkMode} />
                       </div>
                     </Fade>
                   </>
                 )}
               </Grid>
 
-              {/* Data Details Section */}
               {/* Data Details Section */}
               <Grid item xs={12}>
                 <GlassCard darkMode={darkMode}>
@@ -1098,23 +555,23 @@ const gpsChartData = sensorData.map((item) => ({
                                     variant="body2"
                                     sx={{ color: darkMode ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)" }}
                                   >
-                                    Accelerometro: {item.rawData.encryptedBlock.decryptedData.acceleration !== null ? item.rawData.encryptedBlock.decryptedData.acceleration : 'N/A'}
+                                    Accelerometro:{" "}
+                                    {item.rawData.encryptedBlock.decryptedData.acceleration !== null
+                                      ? item.rawData.encryptedBlock.decryptedData.acceleration
+                                      : "N/A"}
                                   </Typography>
                                   <Typography
                                     variant="body2"
                                     sx={{ color: darkMode ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)" }}
                                   >
-                                    GPS: Lat {item.rawData.encryptedBlock.decryptedData.latitude !== null ? item.rawData.encryptedBlock.decryptedData.latitude : 'N/A'}, 
-                                    Long {item.rawData.encryptedBlock.decryptedData.longitude !== null ? item.rawData.encryptedBlock.decryptedData.longitude : 'N/A'}
-                                  </Typography>
-                                  <Typography
-                                    variant="body2"
-                                    sx={{ color: darkMode ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)", 
-                                          wordBreak: "break-all", 
-                                          fontSize: "0.75rem",
-                                          mt: 1 }}
-                                  >
-                                    Raw Hex: {item.rawData.encryptedBlock.decryptedData.rawHex || 'N/A'}
+                                    GPS: Lat{" "}
+                                    {item.rawData.encryptedBlock.decryptedData.latitude !== null
+                                      ? item.rawData.encryptedBlock.decryptedData.latitude
+                                      : "N/A"}
+                                    , Long{" "}
+                                    {item.rawData.encryptedBlock.decryptedData.longitude !== null
+                                      ? item.rawData.encryptedBlock.decryptedData.longitude
+                                      : "N/A"}
                                   </Typography>
                                 </>
                               )}

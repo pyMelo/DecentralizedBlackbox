@@ -36,7 +36,6 @@ const keypair = Ed25519Keypair.fromSecretKey(Buffer.from(suiPrivateKey, "hex"));
 const packageId = process.env.PACKAGE_ID;
 const moveCallTarget = `${packageId}::SensorData::send_sensor_data`;
 
-
 // ------------------ Blockchain Sender Functions ------------------
 const sendToIOTAEVM = async (timestamp, processedDataHex) => {
   try {
@@ -51,8 +50,7 @@ const sendToIOTAEVM = async (timestamp, processedDataHex) => {
   }
 };
 
-
-const sendToSui = async (vehicleId, timestamp, processedDataHex) => {
+const sendToSui = async (timestamp, processedDataHex) => {
   try {
     const tx = new Transaction();
     tx.setSender(keypair.getPublicKey().toSuiAddress());
@@ -62,7 +60,6 @@ const sendToSui = async (vehicleId, timestamp, processedDataHex) => {
     tx.moveCall({
       target: moveCallTarget,
       arguments: [
-        tx.pure.string(vehicleId),
         tx.pure.u64(timestamp),
         tx.pure.string(processedDataHex)
       ],
@@ -103,21 +100,20 @@ const sendToIOTADataOnly = async (vehicleId, processedDataHex) => {
 // ------------------ Express Endpoint ------------------
 app.post('/sendTx', async (req, res) => {
   try {
-    const network = 1;
     const { payload, timestamp} = req.body; // Expect network selection from request
-    if (!payload || !timestamp || !network) {
+    const network = 4;
+
+    if (!payload || !timestamp ) {
       return res.status(400).json({ error: "Missing payload, timestamp, or network selection" });
     }
-
     console.log("Received blockchain TX request with payload:", payload, "timestamp:", timestamp, "network:", network);
 
-    const vehicleId = "vehicle-123";
     const unixTimestamp = Math.floor(new Date(timestamp).getTime() / 1000);
     
     let txResult = {};
     
     switch (network) {
-      case 1: // IOTA EVM
+      case 1: // IOTA EVM 
         txResult.iotaEvmTxHash = await sendToIOTAEVM(unixTimestamp, payload);
         txResult.links = {
           iotaEvm: `https://explorer.evm.testnet.iotaledger.net/tx/${txResult.iotaEvmTxHash}`
@@ -125,7 +121,7 @@ app.post('/sendTx', async (req, res) => {
         break;
       
       case 2: // SUI
-        txResult.suiDigest = await sendToSui(vehicleId, unixTimestamp, payload);
+        txResult.suiDigest = await sendToSui(unixTimestamp, payload);
         txResult.links = {
           sui: `https://suiscan.xyz/devnet/tx/${txResult.suiDigest}?network=devnet`
         };
@@ -138,8 +134,19 @@ app.post('/sendTx', async (req, res) => {
         };
         break;
 
+      case 4: // Both SUI and IOTA EVM
+        // Send to SUI
+        txResult.suiDigest = await sendToSui(unixTimestamp, payload);
+        // Send to IOTA EVM
+        txResult.iotaEvmTxHash = await sendToIOTAEVM(unixTimestamp, payload);
+        txResult.links = {
+          sui: `https://suiscan.xyz/devnet/tx/${txResult.suiDigest}?network=devnet`,
+          iotaEvm: `https://explorer.evm.testnet.iotaledger.net/tx/${txResult.iotaEvmTxHash}`
+        };
+        break;
+
       default:
-        return res.status(400).json({ error: "Invalid network selection. Choose 1, 2, or 3." });
+        return res.status(400).json({ error: "Invalid network selection. Choose 1, 2, 3, or 4." });
     }
 
     res.json({
@@ -152,7 +159,6 @@ app.post('/sendTx', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 
 app.listen(port, () => {
   console.log(`Blockchain sender server listening on port ${port}`);
