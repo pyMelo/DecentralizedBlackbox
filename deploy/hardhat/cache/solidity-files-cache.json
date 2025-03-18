@@ -37,8 +37,8 @@
       ]
     },
     "/home/melo/Desktop/TesiIOTA/deploy/hardhat/contracts/SensorDataBatch.sol": {
-      "lastModificationDate": 1740399114491,
-      "contentHash": "cf36e01ed7318142c046a40e2b1f7bdc",
+      "lastModificationDate": 1741883418233,
+      "contentHash": "d56def089b91066085ddc4b313b9163c",
       "sourceName": "contracts/SensorDataBatch.sol",
       "solcConfig": {
         "version": "0.8.18",

@@ -2,91 +2,72 @@
 pragma solidity ^0.8.0;
 
 contract SensorDataBatch {
-    // Struttura per memorizzare un batch di dati sensoriali
     struct SensorBatch {
-        uint256 timestamp; // Timestamp completo della registrazione
-        string hexData;    // Dati ricevuti in formato esadecimale
+        uint256 timestamp; // Complete timestamp of the recording
+        string hexData;    // Data received in hexadecimal format
     }
 
-    // Mapping: veicolo => (dataKey => array di batch)
-    // Il "dataKey" è calcolato normalizzando il timestamp all'inizio del giorno.
-    mapping(string => mapping(uint256 => SensorBatch[])) private batches;
+    // Mapping: dateKey => array of batches
+    mapping(uint256 => SensorBatch[]) private batches;
 
-    // Evento per registrare l'arrivo di nuovi dati
     event SensorBatchReceived(
-        string vehicleId,
-        uint256 dateKey,
+        uint256 indexed dateKey,
         uint256 timestamp,
         string hexData
     );
 
     /**
-     * @notice Registra un batch di dati sensoriali ricevuti in formato HEX.
-     * @param vehicleId Identificativo del veicolo.
-     * @param timestamp Il timestamp della registrazione (es. block.timestamp).
-     * @param hexData Dati esadecimali ricevuti dal veicolo.
+     * @notice Stores a batch of sensor data in HEX format.
+     * @param timestamp The timestamp of the recording (e.g., block.timestamp).
+     * @param hexData Hexadecimal data received from the sensor.
      */
     function receiveSensorBatch(
-        string calldata vehicleId,
         uint256 timestamp,
         string calldata hexData
     ) external {
-        // Se vuoi togliere il controllo sul formato esadecimale (lunghezza pari)
-        // puoi commentare o rimuovere la seguente riga:
-        // require(bytes(hexData).length % 2 == 0, "Hex string must have an even length");
+        uint256 dateKey = timestamp - (timestamp % 1 days); // Normalize timestamp to start of the day
 
-        // Calcola il "date key" normalizzando il timestamp all'inizio del giorno (UTC)
-        uint256 dateKey = timestamp - (timestamp % 1 days);
-
-        // Crea il nuovo batch
         SensorBatch memory newBatch = SensorBatch({
             timestamp: timestamp,
             hexData: hexData
         });
 
-        // Salva il batch
-        batches[vehicleId][dateKey].push(newBatch);
+        batches[dateKey].push(newBatch);
 
-        // Emetti l'evento
-        emit SensorBatchReceived(vehicleId, dateKey, timestamp, hexData);
+        emit SensorBatchReceived(dateKey, timestamp, hexData);
     }
 
     /**
-     * @notice Recupera il numero di batch registrati per un veicolo in una determinata data.
-     * @param vehicleId Identificativo del veicolo.
-     * @param dateKey Il "date key" (timestamp dell'inizio della giornata).
-     * @return Il numero di batch per quel giorno.
+     * @notice Returns the number of batches recorded for a specific day.
+     * @param dateKey The "date key" (start of the day in timestamp).
+     * @return The number of batches for that day.
      */
-    function getBatchCount(string calldata vehicleId, uint256 dateKey) external view returns (uint256) {
-        return batches[vehicleId][dateKey].length;
+    function getBatchCount(uint256 dateKey) external view returns (uint256) {
+        return batches[dateKey].length;
     }
 
     /**
-     * @notice Recupera un batch di dati per un veicolo in una determinata data.
-     * @param vehicleId Identificativo del veicolo.
-     * @param dateKey Il "date key" (inizio della giornata in timestamp).
-     * @param index Indice del batch nell'array.
-     * @return Il timestamp e i dati HEX.
+     * @notice Retrieves a batch of sensor data for a specific day.
+     * @param dateKey The "date key" (start of the day in timestamp).
+     * @param index Index of the batch in the array.
+     * @return The timestamp and HEX data.
      */
     function getSensorBatch(
-        string calldata vehicleId,
         uint256 dateKey,
         uint256 index
     ) external view returns (uint256, string memory) {
-        SensorBatch storage batch = batches[vehicleId][dateKey][index];
+        SensorBatch storage batch = batches[dateKey][index];
         return (batch.timestamp, batch.hexData);
     }
 
     /**
-     * @notice Recupera tutti i batch di un veicolo per un determinato giorno.
-     * @param vehicleId Identificativo del veicolo.
-     * @param dateKey Il "date key" (inizio della giornata in timestamp).
-     * @return Un array di tutti i batch registrati quel giorno.
+     * @notice Retrieves all batches for a specific day.
+     * @param dateKey The "date key" (start of the day in timestamp).
+     * @return An array of all recorded batches for that day.
      */
     function getAllSensorBatchesForDay(
-        string calldata vehicleId,
         uint256 dateKey
     ) external view returns (SensorBatch[] memory) {
-        return batches[vehicleId][dateKey];
+        return batches[dateKey];
     }
 }
