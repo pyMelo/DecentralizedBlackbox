@@ -49,6 +49,11 @@ void setupLoRaWAN() {
 }
 
 void sendToTTN(uint8_t* payload, size_t len) {
+    if (!node->isActivated()) {
+        Serial.println("⚠️ Not activated! Cannot send. Load session or re-join required.");
+        return;
+    }
+
     Serial.print("📡 Sending Payload to TTN (HEX): ");
     for (int i = 0; i < len; i++) {
         Serial.printf("%02X ", payload[i]);
@@ -62,7 +67,7 @@ void sendToTTN(uint8_t* payload, size_t len) {
         Serial.printf("❌ Failed to send data (Error: %d)\n", state);
     }
 
-    persist.saveSession(node);
+    persist.saveSession(node);  // 🔒 Salvi sempre lo stato aggiornato
 }
 
 #endif

@@ -28,7 +28,7 @@ const abi = [
 const sensorContract = new ethers.Contract(contractAddress, abi, wallet);
 
 // ------------------ SUI Setup ------------------
-const suiClient = new SuiClient({ url: "https://fullnode.devnet.sui.io:443" });
+const suiClient = new SuiClient({ url: "https://fullnode.testnet.sui.io:443" });
 const suiPrivateKey = process.env.SUI_PRIVATE_KEY;
 const keypair = Ed25519Keypair.fromSecretKey(Buffer.from(suiPrivateKey, "hex"));
 
@@ -68,8 +68,9 @@ const sendToSui = async (timestamp, processedDataHex) => {
     const builtTx = await tx.build({ client: suiClient });
     const { bytes: txBytes, signature: txSignature } = await keypair.signTransaction(builtTx);
     const result = await suiClient.executeTransactionBlock({ transactionBlock: txBytes, signature: txSignature });
-    console.log(`Sui TX: https://suiscan.xyz/devnet/tx/${result.digest}?network=devnet`);
-    return result.digest;
+    console.log(`Sui TX: https://suiscan.xyz/tesnet/tx/${result.digest}?network=testnet`);
+    return result.digest;        console.log(`IOTA Block: https://explorer.iota.org/iota-testnet/block/${result.trim()}`);
+
   } catch (error) {
     console.error('Error sending data to Sui:', error);
     return null;
@@ -123,7 +124,7 @@ app.post('/sendTx', async (req, res) => {
       case 2: // SUI
         txResult.suiDigest = await sendToSui(unixTimestamp, payload);
         txResult.links = {
-          sui: `https://suiscan.xyz/devnet/tx/${txResult.suiDigest}?network=devnet`
+          sui: `https://suiscan.xyz/testnet/tx/${txResult.suiDigest}?network=testnet`
         };
         break;
 
@@ -140,7 +141,7 @@ app.post('/sendTx', async (req, res) => {
         // Send to IOTA EVM
         txResult.iotaEvmTxHash = await sendToIOTAEVM(unixTimestamp, payload);
         txResult.links = {
-          sui: `https://suiscan.xyz/devnet/tx/${txResult.suiDigest}?network=devnet`,
+          sui: `https://suiscan.xyz/testnet/tx/${txResult.suiDigest}?network=testnet`,
           iotaEvm: `https://explorer.evm.testnet.iotaledger.net/tx/${txResult.iotaEvmTxHash}`
         };
         break;

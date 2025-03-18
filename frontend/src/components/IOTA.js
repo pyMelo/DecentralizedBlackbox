@@ -11,12 +11,16 @@ import {
   Grid,
   CircularProgress,
   Tooltip,
+  Paper,
+  Switch,
+  FormControlLabel,
 } from "@mui/material"
 import { Contract, JsonRpcProvider } from "ethers"
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday"
 import LockIcon from "@mui/icons-material/Lock"
 import RefreshIcon from "@mui/icons-material/Refresh"
 import LockOpenIcon from "@mui/icons-material/LockOpen"
+import GridViewIcon from "@mui/icons-material/GridView"
 import { useNavigate } from "react-router-dom"
 
 // Componenti condivisi
@@ -40,6 +44,7 @@ const IOTA = () => {
   const [darkMode, setDarkMode] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [activeTab, setActiveTab] = useState(0)
+  const [showAllCharts, setShowAllCharts] = useState(false)
 
   const [mode, setMode] = useState("clear")
   const [masterKey, setMasterKey] = useState("")
@@ -64,9 +69,8 @@ const IOTA = () => {
       setInitDate(savedInitDate)
     }
 
-    // Check user preference for dark mode
-    const prefersDarkMode = window.matchMedia("(prefers-color-scheme: dark)").matches
-    setDarkMode(prefersDarkMode)
+    // Impostiamo la modalità chiara come predefinita
+    setDarkMode(false)
   }, [])
 
   const toggleDarkMode = () => {
@@ -75,6 +79,10 @@ const IOTA = () => {
 
   const toggleDrawer = () => {
     setDrawerOpen(!drawerOpen)
+  }
+
+  const toggleShowAllCharts = () => {
+    setShowAllCharts(!showAllCharts)
   }
 
   // Funzione per decodificare il payload
@@ -300,7 +308,7 @@ const IOTA = () => {
       />
 
       {/* Main Content */}
-      <Box sx={{ p: 3 }}>
+      <Box sx={{ p: 3, maxWidth: "1400px", mx: "auto" }}>
         <Grid container spacing={3}>
           {/* Form Section */}
           <Grid item xs={12}>
@@ -317,8 +325,8 @@ const IOTA = () => {
                 >
                   Configurazione
                 </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={6}>
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={4}>
                     <StyledTextField
                       fullWidth
                       variant="outlined"
@@ -329,7 +337,7 @@ const IOTA = () => {
                       darkMode={darkMode}
                     />
                   </Grid>
-                  <Grid item xs={12} md={6}>
+                  <Grid item xs={12} md={4}>
                     <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
                       <StyledTextField
                         fullWidth
@@ -347,6 +355,23 @@ const IOTA = () => {
                         </IconButton>
                       </Tooltip>
                     </Box>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <StyledButton
+                      variant="contained"
+                      fullWidth
+                      onClick={handleFetchClearData}
+                      disabled={loading || !contractAddress}
+                      startIcon={<RefreshIcon />}
+                      darkMode={darkMode}
+                      sx={{
+                        background: darkMode ? "#6441A5" : "#6441A5",
+                        color: "white",
+                        height: "56px",
+                      }}
+                    >
+                      {loading ? <CircularProgress size={24} color="inherit" /> : "Mostra Dati in Chiaro"}
+                    </StyledButton>
                   </Grid>
                   <Grid item xs={12} md={6}>
                     <StyledTextField
@@ -390,36 +415,25 @@ const IOTA = () => {
                     />
                   </Grid>
                   <Grid item xs={12}>
-                    <Box sx={{ display: "flex", gap: 2, mt: 1 }}>
-                      <StyledButton
-                        variant="contained"
-                        fullWidth
-                        onClick={handleFetchClearData}
-                        disabled={loading || !contractAddress}
-                        startIcon={<RefreshIcon />}
-                        darkMode={darkMode}
-                        sx={{
-                          background: darkMode ? "#6441A5" : "#6441A5",
-                          color: "white",
-                        }}
-                      >
-                        {loading ? <CircularProgress size={24} color="inherit" /> : "Mostra Dati in Chiaro"}
-                      </StyledButton>
-                      <StyledButton
-                        variant="contained"
-                        fullWidth
-                        onClick={handleFetchData}
-                        disabled={!selectedDate || (!dailyKey && (!masterKey || !vehicleId || !initDate)) || loading || !contractAddress}
-                        startIcon={<LockOpenIcon />}
-                        darkMode={darkMode}
-                        sx={{
-                          background: darkMode ? "#6441A5" : "#6441A5",
-                          color: "white",
-                        }}
-                      >
-                        {loading ? <CircularProgress size={24} color="inherit" /> : "Mostra Dati Nascosti"}
-                      </StyledButton>
-                    </Box>
+                    <StyledButton
+                      variant="contained"
+                      fullWidth
+                      onClick={handleFetchData}
+                      disabled={
+                        !selectedDate ||
+                        (!dailyKey && (!masterKey || !vehicleId || !initDate)) ||
+                        loading ||
+                        !contractAddress
+                      }
+                      startIcon={<LockOpenIcon />}
+                      darkMode={darkMode}
+                      sx={{
+                        background: darkMode ? "#6441A5" : "#6441A5",
+                        color: "white",
+                      }}
+                    >
+                      {loading ? <CircularProgress size={24} color="inherit" /> : "Mostra Dati Nascosti"}
+                    </StyledButton>
                   </Grid>
                 </Grid>
 
@@ -464,38 +478,190 @@ const IOTA = () => {
           {data.length > 0 && (
             <>
               <Grid item xs={12}>
-                <ChartTabs activeTab={activeTab} setActiveTab={setActiveTab} tabs={availableTabs} darkMode={darkMode} />
+                <Paper
+                  elevation={0}
+                  sx={{
+                    borderRadius: "16px",
+                    overflow: "hidden",
+                    background: darkMode ? "rgba(255, 255, 255, 0.05)" : "rgba(255, 255, 255, 0.8)",
+                    backdropFilter: "blur(10px)",
+                    border: "1px solid rgba(255, 255, 255, 0.2)",
+                    boxShadow: "0 8px 32px rgba(0, 0, 0, 0.1)",
+                    p: 2,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <Box sx={{ flex: 1 }}>
+                    {!showAllCharts && (
+                      <ChartTabs
+                        activeTab={activeTab}
+                        setActiveTab={setActiveTab}
+                        tabs={availableTabs}
+                        darkMode={darkMode}
+                      />
+                    )}
+                  </Box>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={showAllCharts}
+                        onChange={toggleShowAllCharts}
+                        color={darkMode ? "default" : "primary"}
+                      />
+                    }
+                    label={
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <GridViewIcon sx={{ color: darkMode ? "white" : "#6441A5" }} />
+                        <Typography sx={{ color: darkMode ? "white" : "#6441A5", fontWeight: 500 }}>
+                          Mostra tutti i grafici
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                </Paper>
               </Grid>
 
               {/* Chart Panels */}
               <Grid item xs={12}>
-                <Fade in={activeTab === 0} timeout={500}>
-                  <div style={{ display: activeTab === 0 ? "block" : "none", height: "400px" }}>
-                    <TemperatureChart data={clearChartData} darkMode={darkMode} />
-                  </div>
-                </Fade>
-
-                <Fade in={activeTab === 1} timeout={500}>
-                  <div style={{ display: activeTab === 1 ? "block" : "none", height: "400px" }}>
-                    <GyroscopeChart data={gyroChartData} darkMode={darkMode} />
-                  </div>
-                </Fade>
-
-                {mode === "decrypted" && (
-                  <>
-                    <Fade in={activeTab === 2} timeout={500}>
-                      <div style={{ display: activeTab === 2 ? "block" : "none", height: "400px" }}>
-                        <AccelerometerChart data={hiddenChartData} darkMode={darkMode} />
-                      </div>
+                <Grid container spacing={3}>
+                  {/* Temperatura Chart */}
+                  <Grid item xs={12} md={showAllCharts ? 6 : 12}>
+                    <Fade in={showAllCharts || activeTab === 0} timeout={500}>
+                      <Paper
+                        elevation={0}
+                        sx={{
+                          display: showAllCharts || activeTab === 0 ? "block" : "none",
+                          height: "400px",
+                          borderRadius: "16px",
+                          overflow: "hidden",
+                          background: darkMode ? "rgba(255, 255, 255, 0.05)" : "rgba(255, 255, 255, 0.8)",
+                          backdropFilter: "blur(10px)",
+                          border: "1px solid rgba(255, 255, 255, 0.2)",
+                          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.1)",
+                          p: 2,
+                        }}
+                      >
+                        <Typography
+                          variant="h6"
+                          sx={{
+                            mb: 1,
+                            fontWeight: 600,
+                            color: darkMode ? "white" : "#6441A5",
+                            textAlign: "center",
+                          }}
+                        >
+                          Temperatura
+                        </Typography>
+                        <TemperatureChart data={clearChartData} darkMode={darkMode} />
+                      </Paper>
                     </Fade>
+                  </Grid>
 
-                    <Fade in={activeTab === 3} timeout={500}>
-                      <div style={{ display: activeTab === 3 ? "block" : "none", height: "400px" }}>
-                        <GPSChart data={gpsChartData} darkMode={darkMode} />
-                      </div>
+                  {/* Giroscopio Chart */}
+                  <Grid item xs={12} md={showAllCharts ? 6 : 12}>
+                    <Fade in={showAllCharts || activeTab === 1} timeout={500}>
+                      <Paper
+                        elevation={0}
+                        sx={{
+                          display: showAllCharts || activeTab === 1 ? "block" : "none",
+                          height: "400px",
+                          borderRadius: "16px",
+                          overflow: "hidden",
+                          background: darkMode ? "rgba(255, 255, 255, 0.05)" : "rgba(255, 255, 255, 0.8)",
+                          backdropFilter: "blur(10px)",
+                          border: "1px solid rgba(255, 255, 255, 0.2)",
+                          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.1)",
+                          p: 2,
+                        }}
+                      >
+                        <Typography
+                          variant="h6"
+                          sx={{
+                            mb: 1,
+                            fontWeight: 600,
+                            color: darkMode ? "white" : "#6441A5",
+                            textAlign: "center",
+                          }}
+                        >
+                          Giroscopio
+                        </Typography>
+                        <GyroscopeChart data={gyroChartData} darkMode={darkMode} />
+                      </Paper>
                     </Fade>
-                  </>
-                )}
+                  </Grid>
+
+                  {mode === "decrypted" && (
+                    <>
+                      {/* Accelerometro Chart */}
+                      <Grid item xs={12} md={showAllCharts ? 6 : 12}>
+                        <Fade in={showAllCharts || activeTab === 2} timeout={500}>
+                          <Paper
+                            elevation={0}
+                            sx={{
+                              display: showAllCharts || activeTab === 2 ? "block" : "none",
+                              height: "400px",
+                              borderRadius: "16px",
+                              overflow: "hidden",
+                              background: darkMode ? "rgba(255, 255, 255, 0.05)" : "rgba(255, 255, 255, 0.8)",
+                              backdropFilter: "blur(10px)",
+                              border: "1px solid rgba(255, 255, 255, 0.2)",
+                              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.1)",
+                              p: 2,
+                            }}
+                          >
+                            <Typography
+                              variant="h6"
+                              sx={{
+                                mb: 1,
+                                fontWeight: 600,
+                                color: darkMode ? "white" : "#6441A5",
+                                textAlign: "center",
+                              }}
+                            >
+                              Accelerometro
+                            </Typography>
+                            <AccelerometerChart data={hiddenChartData} darkMode={darkMode} />
+                          </Paper>
+                        </Fade>
+                      </Grid>
+
+                      {/* GPS Chart */}
+                      <Grid item xs={12} md={showAllCharts ? 6 : 12}>
+                        <Fade in={showAllCharts || activeTab === 3} timeout={500}>
+                          <Paper
+                            elevation={0}
+                            sx={{
+                              display: showAllCharts || activeTab === 3 ? "block" : "none",
+                              height: "400px",
+                              borderRadius: "16px",
+                              overflow: "hidden",
+                              background: darkMode ? "rgba(255, 255, 255, 0.05)" : "rgba(255, 255, 255, 0.8)",
+                              backdropFilter: "blur(10px)",
+                              border: "1px solid rgba(255, 255, 255, 0.2)",
+                              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.1)",
+                              p: 2,
+                            }}
+                          >
+                            <Typography
+                              variant="h6"
+                              sx={{
+                                mb: 1,
+                                fontWeight: 600,
+                                color: darkMode ? "white" : "#6441A5",
+                                textAlign: "center",
+                              }}
+                            >
+                              GPS
+                            </Typography>
+                            <GPSChart data={gpsChartData} darkMode={darkMode} />
+                          </Paper>
+                        </Fade>
+                      </Grid>
+                    </>
+                  )}
+                </Grid>
               </Grid>
 
               {/* Data Details Section */}
@@ -555,7 +721,8 @@ const IOTA = () => {
                                 variant="body2"
                                 sx={{ mb: 1, color: darkMode ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)" }}
                               >
-                                X: {item.clearBlock.gx.toFixed(2)}, Y: {item.clearBlock.gy.toFixed(2)}, Z: {item.clearBlock.gz.toFixed(2)}
+                                X: {item.clearBlock.gx.toFixed(2)}, Y: {item.clearBlock.gy.toFixed(2)}, Z:{" "}
+                                {item.clearBlock.gz.toFixed(2)}
                               </Typography>
 
                               {mode === "decrypted" && item.encryptedBlock.decryptedData && (
@@ -576,7 +743,9 @@ const IOTA = () => {
                                     variant="body2"
                                     sx={{ color: darkMode ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)" }}
                                   >
-                                    GPS: Lat {item.encryptedBlock.decryptedData.latitude}, Long {item.encryptedBlock.decryptedData.longitude}
+                                    GPS: Lat {item.encryptedBlock.decryptedData.latitude}, Long{" "}
+                                    {item.encryptedBlock.decryptedData.longitude}
+                                    Long {item.encryptedBlock.decryptedData.longitude}
                                   </Typography>
                                 </>
                               )}
@@ -597,3 +766,4 @@ const IOTA = () => {
 }
 
 export default IOTA
+

@@ -12,6 +12,7 @@ import {
   CardContent,
   Grid,
   Tooltip,
+  Paper,
 } from "@mui/material"
 import { SuiClient } from "@mysten/sui/client"
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday"
@@ -45,11 +46,13 @@ const SUI = () => {
   const [packageId, setPackageId] = useState("")
   const [date, setDate] = useState(new Date().toISOString().split("T")[0])
   const [masterKey, setMasterKey] = useState("")
+  // Stato per la Daily Key inserita manualmente
+  const [dailyKey, setDailyKey] = useState("")
   const [sensorData, setSensorData] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
-  // showGroup2: grafici di accelerometro e GPS (visibili dopo inserimento master key)
+  // showGroup2: grafici di accelerometro e GPS (visibili dopo decrittazione)
   const [showGroup2, setShowGroup2] = useState(false)
 
   // Carica automaticamente Vehicle ID e Data di Inizializzazione dal profilo (localStorage)
@@ -64,9 +67,8 @@ const SUI = () => {
       setInitDate(savedInitDate)
     }
 
-    // Check user preference for dark mode
-    const prefersDarkMode = window.matchMedia("(prefers-color-scheme: dark)").matches
-    setDarkMode(prefersDarkMode)
+    // Impostiamo la modalità chiara come predefinita
+    setDarkMode(false)
   }, [])
 
   const toggleDarkMode = () => {
@@ -87,23 +89,30 @@ const SUI = () => {
     setError("")
     setSuccess("")
 
-    const client = new SuiClient({ url: "https://fullnode.devnet.sui.io:443" })
+    const client = new SuiClient({ url: "https://fullnode.testnet.sui.io:443" })
 
     try {
+      // Utilizziamo il filtro MoveFunction per cercare le transazioni che invocano send_sensor_data
       const txResponse = await client.queryTransactionBlocks({
-        filter: { InputObject: packageId },
+        filter: {
+          MoveFunction: {
+            package: packageId,
+            module: "SensorData",
+            function: "send_sensor_data",
+          },
+        },
         limit: 100,
         options: { showInput: true, showEffects: true, showEvents: true },
       })
 
       const transactions = txResponse.data || []
 
-      // Usa la data selezionata invece della data attuale
+      // Usa la data selezionata (impostata dall'utente)
       const selectedDate = new Date(date)
       const selectedStart = selectedDate.setHours(0, 0, 0, 0)
       const selectedEnd = selectedDate.setHours(23, 59, 59, 999)
 
-      // Filtra le transazioni in base alla data selezionata
+      // Filtra le transazioni in base al timestamp
       const filteredTx = transactions.filter((tx) => {
         const ts = Number(tx.timestampMs)
         return ts >= selectedStart && ts <= selectedEnd
@@ -115,13 +124,13 @@ const SUI = () => {
         return
       }
 
-      // Estrarre i dati dai payload
+      // Estrae i dati dal payload della transazione
       const sensorRecords = filteredTx
         .map((tx) => {
           const hexData = tx.transaction?.data?.transaction?.inputs[1]?.value || ""
           const rawBytes = hexStringToBytes(hexData)
 
-          if (rawBytes.length < 29) return null // Controlla che il payload sia valido
+          if (rawBytes.length < 29) return null // Verifica che il payload sia valido
 
           const temperature = rawBytes[18]
           const gyroX = (rawBytes[20] > 127 ? rawBytes[20] - 256 : rawBytes[20]) / 100
@@ -174,8 +183,9 @@ const SUI = () => {
   }
 
   const handleDecryptData = async () => {
-    if (!masterKey || !vehicleId || !initDate) {
-      setError("Inserisci la Master Key, Vehicle ID e Data di Inizio per decrittare i dati.")
+    // Se la Daily Key è fornita la usiamo, altrimenti verifichiamo che Master Key, Vehicle ID e Init Date siano presenti per calcolarla
+    if (!dailyKey.trim() && (!masterKey || !vehicleId || !initDate)) {
+      setError("Inserisci la Daily Key oppure la Master Key, Vehicle ID e Data di Inizio per decrittare i dati.")
       return
     }
 
@@ -183,8 +193,14 @@ const SUI = () => {
     setError("")
 
     try {
-      const dailyKey = await generateDailyKeySHA256(masterKey, vehicleId, initDate, date)
-      console.log("Computed Daily Key:", dailyKey)
+      let keyToUse = ""
+      if (dailyKey.trim() !== "") {
+        keyToUse = dailyKey.trim()
+        console.log("Daily Key fornita:", keyToUse)
+      } else {
+        keyToUse = await generateDailyKeySHA256(masterKey, vehicleId, initDate, date)
+        console.log("Computed Daily Key:", keyToUse)
+      }
 
       const decryptedSensorData = await Promise.all(
         sensorData.map(async (record) => {
@@ -192,7 +208,7 @@ const SUI = () => {
             const decryptedBytes = await decryptWithAES(
               record.rawData.encryptedBlock.encryptedData,
               record.rawData.effectiveIV,
-              dailyKey,
+              keyToUse,
             )
 
             if (!decryptedBytes) throw new Error("Decryption failed")
@@ -306,7 +322,7 @@ const SUI = () => {
       />
 
       {/* Main Content */}
-      <Box sx={{ p: 3 }}>
+      <Box sx={{ p: 3, maxWidth: "1400px", mx: "auto" }}>
         <Grid container spacing={3}>
           {/* Form Section */}
           <Grid item xs={12}>
@@ -323,8 +339,8 @@ const SUI = () => {
                 >
                   Configurazione
                 </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={6}>
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={4}>
                     <StyledTextField
                       fullWidth
                       variant="outlined"
@@ -335,7 +351,7 @@ const SUI = () => {
                       darkMode={darkMode}
                     />
                   </Grid>
-                  <Grid item xs={12} md={6}>
+                  <Grid item xs={12} md={4}>
                     <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
                       <StyledTextField
                         fullWidth
@@ -354,7 +370,24 @@ const SUI = () => {
                       </Tooltip>
                     </Box>
                   </Grid>
-                  <Grid item xs={12}>
+                  <Grid item xs={12} md={4}>
+                    <StyledButton
+                      variant="contained"
+                      fullWidth
+                      onClick={handleFetchSensorData}
+                      disabled={loading || !packageId}
+                      startIcon={<RefreshIcon />}
+                      darkMode={darkMode}
+                      sx={{
+                        background: darkMode ? "#6441A5" : "#6441A5",
+                        color: "white",
+                        height: "56px",
+                      }}
+                    >
+                      {loading ? <CircularProgress size={24} color="inherit" /> : "Mostra Dati in Chiaro"}
+                    </StyledButton>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
                     <StyledTextField
                       fullWidth
                       variant="outlined"
@@ -374,37 +407,46 @@ const SUI = () => {
                       }}
                     />
                   </Grid>
+                  <Grid item xs={12} md={6}>
+                    <StyledTextField
+                      fullWidth
+                      variant="outlined"
+                      label="Daily Key (hex)"
+                      placeholder="Inserisci Daily Key per decrittare i dati (opzionale)"
+                      value={dailyKey}
+                      onChange={(e) => setDailyKey(e.target.value)}
+                      darkMode={darkMode}
+                      InputProps={{
+                        endAdornment: (
+                          <Tooltip title="Daily Key per decrittazione">
+                            <IconButton edge="end" sx={{ color: darkMode ? "white" : "black" }}>
+                              <LockIcon />
+                            </IconButton>
+                          </Tooltip>
+                        ),
+                      }}
+                    />
+                  </Grid>
                   <Grid item xs={12}>
-                    <Box sx={{ display: "flex", gap: 2, mt: 1 }}>
-                      <StyledButton
-                        variant="contained"
-                        fullWidth
-                        onClick={handleFetchSensorData}
-                        disabled={loading || !packageId}
-                        startIcon={<RefreshIcon />}
-                        darkMode={darkMode}
-                        sx={{
-                          background: darkMode ? "#6441A5" : "#6441A5",
-                          color: "white",
-                        }}
-                      >
-                        {loading ? <CircularProgress size={24} color="inherit" /> : "Mostra Dati in Chiaro"}
-                      </StyledButton>
-                      <StyledButton
-                        variant="contained"
-                        fullWidth
-                        onClick={handleDecryptData}
-                        disabled={loading || !packageId || !masterKey || sensorData.length === 0}
-                        startIcon={<LockOpenIcon />}
-                        darkMode={darkMode}
-                        sx={{
-                          background: darkMode ? "#6441A5" : "#6441A5",
-                          color: "white",
-                        }}
-                      >
-                        {loading ? <CircularProgress size={24} color="inherit" /> : "Mostra Dati Nascosti"}
-                      </StyledButton>
-                    </Box>
+                    <StyledButton
+                      variant="contained"
+                      fullWidth
+                      onClick={handleDecryptData}
+                      disabled={
+                        loading ||
+                        !packageId ||
+                        (!dailyKey.trim() && (!masterKey || !vehicleId || !initDate)) ||
+                        sensorData.length === 0
+                      }
+                      startIcon={<LockOpenIcon />}
+                      darkMode={darkMode}
+                      sx={{
+                        background: darkMode ? "#6441A5" : "#6441A5",
+                        color: "white",
+                      }}
+                    >
+                      {loading ? <CircularProgress size={24} color="inherit" /> : "Mostra Dati Nascosti"}
+                    </StyledButton>
                   </Grid>
                 </Grid>
 
@@ -449,38 +491,117 @@ const SUI = () => {
           {sensorData.length > 0 && (
             <>
               <Grid item xs={12}>
-                <ChartTabs activeTab={activeTab} setActiveTab={setActiveTab} tabs={availableTabs} darkMode={darkMode} />
+                <Paper
+                  elevation={0}
+                  sx={{
+                    borderRadius: "16px",
+                    overflow: "hidden",
+                    background: darkMode ? "rgba(255, 255, 255, 0.05)" : "rgba(255, 255, 255, 0.8)",
+                    backdropFilter: "blur(10px)",
+                    border: "1px solid rgba(255, 255, 255, 0.2)",
+                    boxShadow: "0 8px 32px rgba(0, 0, 0, 0.1)",
+                  }}
+                >
+                  <ChartTabs
+                    activeTab={activeTab}
+                    setActiveTab={setActiveTab}
+                    tabs={availableTabs}
+                    darkMode={darkMode}
+                  />
+                </Paper>
               </Grid>
 
               {/* Chart Panels */}
               <Grid item xs={12}>
-                <Fade in={activeTab === 0} timeout={500}>
-                  <div style={{ display: activeTab === 0 ? "block" : "none", height: "400px" }}>
-                    <TemperatureChart data={temperatureChartData} darkMode={darkMode} />
-                  </div>
-                </Fade>
-
-                <Fade in={activeTab === 1} timeout={500}>
-                  <div style={{ display: activeTab === 1 ? "block" : "none", height: "400px" }}>
-                    <GyroscopeChart data={gyroChartData} darkMode={darkMode} />
-                  </div>
-                </Fade>
-
-                {showGroup2 && (
-                  <>
-                    <Fade in={activeTab === 2} timeout={500}>
-                      <div style={{ display: activeTab === 2 ? "block" : "none", height: "400px" }}>
-                        <AccelerometerChart data={accelChartData} darkMode={darkMode} />
-                      </div>
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={6}>
+                    <Fade in={activeTab === 0} timeout={500}>
+                      <Paper
+                        elevation={0}
+                        sx={{
+                          display: activeTab === 0 ? "block" : "none",
+                          height: "400px",
+                          borderRadius: "16px",
+                          overflow: "hidden",
+                          background: darkMode ? "rgba(255, 255, 255, 0.05)" : "rgba(255, 255, 255, 0.8)",
+                          backdropFilter: "blur(10px)",
+                          border: "1px solid rgba(255, 255, 255, 0.2)",
+                          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.1)",
+                          p: 2,
+                        }}
+                      >
+                        <TemperatureChart data={temperatureChartData} darkMode={darkMode} />
+                      </Paper>
                     </Fade>
+                  </Grid>
 
-                    <Fade in={activeTab === 3} timeout={500}>
-                      <div style={{ display: activeTab === 3 ? "block" : "none", height: "400px" }}>
-                        <GPSChart data={gpsChartData} darkMode={darkMode} />
-                      </div>
+                  <Grid item xs={12} md={6}>
+                    <Fade in={activeTab === 1} timeout={500}>
+                      <Paper
+                        elevation={0}
+                        sx={{
+                          display: activeTab === 1 ? "block" : "none",
+                          height: "400px",
+                          borderRadius: "16px",
+                          overflow: "hidden",
+                          background: darkMode ? "rgba(255, 255, 255, 0.05)" : "rgba(255, 255, 255, 0.8)",
+                          backdropFilter: "blur(10px)",
+                          border: "1px solid rgba(255, 255, 255, 0.2)",
+                          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.1)",
+                          p: 2,
+                        }}
+                      >
+                        <GyroscopeChart data={gyroChartData} darkMode={darkMode} />
+                      </Paper>
                     </Fade>
-                  </>
-                )}
+                  </Grid>
+
+                  {showGroup2 && (
+                    <>
+                      <Grid item xs={12} md={6}>
+                        <Fade in={activeTab === 2} timeout={500}>
+                          <Paper
+                            elevation={0}
+                            sx={{
+                              display: activeTab === 2 ? "block" : "none",
+                              height: "400px",
+                              borderRadius: "16px",
+                              overflow: "hidden",
+                              background: darkMode ? "rgba(255, 255, 255, 0.05)" : "rgba(255, 255, 255, 0.8)",
+                              backdropFilter: "blur(10px)",
+                              border: "1px solid rgba(255, 255, 255, 0.2)",
+                              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.1)",
+                              p: 2,
+                            }}
+                          >
+                            <AccelerometerChart data={accelChartData} darkMode={darkMode} />
+                          </Paper>
+                        </Fade>
+                      </Grid>
+
+                      <Grid item xs={12} md={6}>
+                        <Fade in={activeTab === 3} timeout={500}>
+                          <Paper
+                            elevation={0}
+                            sx={{
+                              display: activeTab === 3 ? "block" : "none",
+                              height: "400px",
+                              borderRadius: "16px",
+                              overflow: "hidden",
+                              background: darkMode ? "rgba(255, 255, 255, 0.05)" : "rgba(255, 255, 255, 0.8)",
+                              backdropFilter: "blur(10px)",
+                              border: "1px solid rgba(255, 255, 255, 0.2)",
+                              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.1)",
+                              p: 2,
+                            }}
+                          >
+                            <GPSChart data={gpsChartData} darkMode={darkMode} />
+                          </Paper>
+                        </Fade>
+                      </Grid>
+                    </>
+                  )}
+                </Grid>
               </Grid>
 
               {/* Data Details Section */}

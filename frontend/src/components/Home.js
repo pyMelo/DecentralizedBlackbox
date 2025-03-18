@@ -23,14 +23,19 @@ import {
   Fade,
   Tooltip,
   Divider,
+  IconButton,
+  Alert,
 } from "@mui/material"
-import { useNavigate } from "react-router-dom"
+import { useNavigate , Link } from "react-router-dom"
 import EditIcon from "@mui/icons-material/Edit"
 import AccountCircleIcon from "@mui/icons-material/AccountCircle"
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth"
 import DirectionsCarIcon from "@mui/icons-material/DirectionsCar"
 import InfoIcon from "@mui/icons-material/Info"
 import SecurityIcon from "@mui/icons-material/Security"
+import ContentCopyIcon from "@mui/icons-material/ContentCopy"
+import CalculateIcon from "@mui/icons-material/Calculate"
+import KeyIcon from "@mui/icons-material/Key"
 import { styled } from "@mui/system"
 
 // Styled components
@@ -139,6 +144,39 @@ const TechBadge = styled(Box)(({ theme }) => ({
   zIndex: 1,
 }))
 
+// Funzione per generare la daily key
+const generateDailyKeySHA256 = async (masterKey, vehicleId, initDate, date) => {
+  try {
+    // Rimuovi eventuali spazi e prefissi "0x" dalla master key
+    const cleanMasterKey = masterKey.replace(/\s+/g, "").toLowerCase().startsWith("0x")
+      ? masterKey.replace(/\s+/g, "").toLowerCase().slice(2)
+      : masterKey.replace(/\s+/g, "").toLowerCase()
+
+    // Converti la master key da hex a array di byte
+    const masterKeyBytes = new Uint8Array(cleanMasterKey.match(/.{1,2}/g).map((byte) => Number.parseInt(byte, 16)))
+
+    // Crea un messaggio combinando initDate, vehicleId e date nel formato corretto
+    const encoder = new TextEncoder()
+    const message = encoder.encode(`${initDate}-${vehicleId}-${date}`)
+
+    // Crea una chiave da masterKeyBytes
+    const key = await window.crypto.subtle.importKey("raw", masterKeyBytes, { name: "HMAC", hash: "SHA-256" }, false, [
+      "sign",
+    ])
+
+    // Firma il messaggio con la chiave
+    const signature = await window.crypto.subtle.sign("HMAC", key, message)
+
+    // Converti la firma in hex
+    return Array.from(new Uint8Array(signature))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("")
+  } catch (error) {
+    console.error("Error generating daily key:", error)
+    return null
+  }
+}
+
 const Home = () => {
   const navigate = useNavigate()
   const isMobile = useMediaQuery("(max-width:768px)")
@@ -158,13 +196,22 @@ const Home = () => {
   const [editVehicleId, setEditVehicleId] = useState("")
   const [editInitDate, setEditInitDate] = useState("")
 
+  // Stati per il Dialog di calcolo della Daily Key
+  const [openDailyKeyDialog, setOpenDailyKeyDialog] = useState(false)
+  const [dailyKeyMasterKey, setDailyKeyMasterKey] = useState("")
+  const [dailyKeyDate, setDailyKeyDate] = useState(new Date().toISOString().split("T")[0])
+  const [calculatedDailyKey, setCalculatedDailyKey] = useState("")
+  const [calculatingDailyKey, setCalculatingDailyKey] = useState(false)
+  const [dailyKeyError, setDailyKeyError] = useState("")
+  const [dailyKeyCopied, setDailyKeyCopied] = useState(false)
+
   // Carica le credenziali dal localStorage
   useEffect(() => {
     const storedNick = localStorage.getItem("nick")
     const storedVehicleId = localStorage.getItem("vehicleId")
     const storedInitDate = localStorage.getItem("initDate")
 
-    // Simulate loading
+    // Simula il caricamento
     setTimeout(() => {
       if (!storedNick || !storedVehicleId || !storedInitDate) {
         setOpenLogin(true)
@@ -223,6 +270,56 @@ const Home = () => {
     setTimeout(() => {
       navigate(path)
     }, 500)
+  }
+
+  // Apre il dialog per calcolare la Daily Key
+  const handleOpenDailyKeyDialog = () => {
+    setOpenDailyKeyDialog(true)
+    setDailyKeyMasterKey("")
+    setCalculatedDailyKey("")
+    setDailyKeyError("")
+    setDailyKeyCopied(false)
+  }
+
+  // Chiude il dialog per calcolare la Daily Key
+  const handleCloseDailyKeyDialog = () => {
+    setOpenDailyKeyDialog(false)
+  }
+
+  // Calcola la Daily Key
+  const handleCalculateDailyKey = async () => {
+    if (!dailyKeyMasterKey || !vehicleId || !initDate || !dailyKeyDate) {
+      setDailyKeyError("Compila tutti i campi per calcolare la Daily Key.")
+      return
+    }
+
+    setCalculatingDailyKey(true)
+    setDailyKeyError("")
+    setDailyKeyCopied(false)
+
+    try {
+      const dailyKey = await generateDailyKeySHA256(dailyKeyMasterKey, vehicleId, initDate, dailyKeyDate)
+
+      if (dailyKey) {
+        setCalculatedDailyKey(dailyKey)
+      } else {
+        setDailyKeyError("Errore nel calcolo della Daily Key.")
+      }
+    } catch (error) {
+      console.error("Error calculating daily key:", error)
+      setDailyKeyError("Errore nel calcolo della Daily Key: " + error.message)
+    } finally {
+      setCalculatingDailyKey(false)
+    }
+  }
+
+  // Copia la Daily Key negli appunti
+  const handleCopyDailyKey = () => {
+    if (calculatedDailyKey) {
+      navigator.clipboard.writeText(calculatedDailyKey)
+      setDailyKeyCopied(true)
+      setTimeout(() => setDailyKeyCopied(false), 2000)
+    }
   }
 
   return (
@@ -447,7 +544,7 @@ const Home = () => {
                 zIndex: 1,
               }}
             >
-              Blockchain IoT Security
+              Decentralized Blackbox
             </Typography>
             <GlowingBorder />
           </Box>
@@ -505,10 +602,11 @@ const Home = () => {
                     sx={{
                       position: "relative",
                       width: "100%",
-                      height: "60%",
+                      height: "40%",
                       display: "flex",
                       justifyContent: "center",
                       alignItems: "center",
+                      padding: "20px",
                     }}
                   >
                     <CardMedia
@@ -516,8 +614,10 @@ const Home = () => {
                       image="/sui-logo.png"
                       alt="SUI"
                       sx={{
-                        width: "60%",
+                        width: "auto",
+                        maxWidth: "80%",
                         height: "auto",
+                        maxHeight: "100%",
                         objectFit: "contain",
                         filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.3))",
                         transition: "transform 0.5s ease",
@@ -542,19 +642,8 @@ const Home = () => {
                       SUI
                     </Typography>
                     <Divider sx={{ my: 1.5, bgcolor: "rgba(255,255,255,0.2)" }} />
-                    <Typography
-                      variant="body2"
-                      align="center"
-                      sx={{
-                        color: "rgba(255, 255, 255, 0.8)",
-                        maxWidth: "80%",
-                        mx: "auto",
-                      }}
-                    >
-                      Esplora i dati sulla blockchain SUI con visualizzazioni avanzate e decrittazione sicura
-                    </Typography>
 
-                    <Box sx={{ mt: 2, display: "flex", justifyContent: "center", gap: 1 }}>
+                    <Box sx={{ mt: 2, mb: 3, display: "flex", justifyContent: "center", gap: 1 }}>
                       <Box
                         sx={{
                           px: 1.5,
@@ -580,6 +669,18 @@ const Home = () => {
                         Encrypted
                       </Box>
                     </Box>
+
+                    <Typography
+                      variant="body2"
+                      align="center"
+                      sx={{
+                        color: "rgba(255, 255, 255, 0.8)",
+                        maxWidth: "80%",
+                        mx: "auto",
+                      }}
+                    >
+                      Esplora i dati sulla blockchain SUI con visualizzazioni avanzate e decrittazione sicura
+                    </Typography>
                   </CardContent>
                 </CardActionArea>
               </PlatformCard>
@@ -616,10 +717,11 @@ const Home = () => {
                     sx={{
                       position: "relative",
                       width: "100%",
-                      height: "60%",
+                      height: "40%",
                       display: "flex",
                       justifyContent: "center",
                       alignItems: "center",
+                      padding: "20px",
                     }}
                   >
                     <CardMedia
@@ -627,8 +729,10 @@ const Home = () => {
                       image="/iota-logo.png"
                       alt="IOTA"
                       sx={{
-                        width: "60%",
+                        width: "auto",
+                        maxWidth: "80%",
                         height: "auto",
+                        maxHeight: "100%",
                         objectFit: "contain",
                         filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.3))",
                         transition: "transform 0.5s ease",
@@ -653,19 +757,8 @@ const Home = () => {
                       IOTA
                     </Typography>
                     <Divider sx={{ my: 1.5, bgcolor: "rgba(255,255,255,0.2)" }} />
-                    <Typography
-                      variant="body2"
-                      align="center"
-                      sx={{
-                        color: "rgba(255, 255, 255, 0.8)",
-                        maxWidth: "80%",
-                        mx: "auto",
-                      }}
-                    >
-                      Analizza i dati IoT sulla rete IOTA con strumenti di visualizzazione e decrittazione avanzati
-                    </Typography>
 
-                    <Box sx={{ mt: 2, display: "flex", justifyContent: "center", gap: 1 }}>
+                    <Box sx={{ mt: 2, mb: 3, display: "flex", justifyContent: "center", gap: 1 }}>
                       <Box
                         sx={{
                           px: 1.5,
@@ -691,43 +784,92 @@ const Home = () => {
                         Tangle
                       </Box>
                     </Box>
+
+                    <Typography
+                      variant="body2"
+                      align="center"
+                      sx={{
+                        color: "rgba(255, 255, 255, 0.8)",
+                        maxWidth: "80%",
+                        mx: "auto",
+                      }}
+                    >
+                      Analizza i dati IoT sulla rete IOTA con strumenti di visualizzazione e decrittazione avanzati
+                    </Typography>
                   </CardContent>
                 </CardActionArea>
               </PlatformCard>
             </Zoom>
           </Box>
 
-          {/* Footer */}
+          {/* Utility Bar */}
           <Box
             sx={{
-              position: "absolute",
-              bottom: 20,
+              position: "fixed",
+              bottom: 0,
               left: 0,
               width: "100%",
-              textAlign: "center",
-              color: "rgba(255,255,255,0.6)",
-              fontSize: "0.8rem",
+              background: "rgba(42, 8, 69, 0.8)",
+              backdropFilter: "blur(10px)",
+              borderTop: "1px solid rgba(255, 255, 255, 0.1)",
+              padding: "10px 0",
               display: "flex",
-              flexDirection: "column",
+              justifyContent: "center",
               alignItems: "center",
-              gap: 1,
+              zIndex: 10,
             }}
           >
-            <Tooltip title="Informazioni sul progetto">
-              <Button
-                startIcon={<InfoIcon />}
-                sx={{
-                  color: "rgba(255,255,255,0.8)",
-                  textTransform: "none",
-                  fontSize: "0.8rem",
-                  "&:hover": {
-                    background: "rgba(255,255,255,0.1)",
-                  },
-                }}
-              >
-                Blockchain IoT Security Dashboard v1.0
-              </Button>
-            </Tooltip>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: 2,
+                flexWrap: "wrap",
+              }}
+            >
+              <Tooltip title="Informazioni sul progetto">
+                <Link to="https://github.com/pyMelo/DecentralizedBlackbox" style={{ textDecoration: "none" }}>
+                  <Button
+                    startIcon={<InfoIcon />}
+                    sx={{
+                      color: "white",
+                      textTransform: "none",
+                      fontSize: "0.9rem",
+                      fontWeight: 500,
+                      background: "rgba(255, 255, 255, 0.1)",
+                      borderRadius: "20px",
+                      padding: "8px 16px",
+                      "&:hover": {
+                        background: "rgba(255, 255, 255, 0.2)",
+                      },
+                    }}
+                  >
+                    Blockchain IoT Security Dashboard v1.0
+                  </Button>
+                </Link>
+              </Tooltip>
+              <Tooltip title="Calcola Daily Key">
+                <Button
+                  startIcon={<CalculateIcon />}
+                  onClick={handleOpenDailyKeyDialog}
+                  sx={{
+                    color: "white",
+                    textTransform: "none",
+                    fontSize: "0.9rem",
+                    fontWeight: 500,
+                    background: "rgba(100, 65, 165, 0.4)",
+                    borderRadius: "20px",
+                    padding: "8px 16px",
+                    "&:hover": {
+                      background: "rgba(100, 65, 165, 0.6)",
+                    },
+                  }}
+                >
+                  Calcola Daily Key
+                </Button>
+              </Tooltip>
+            </Box>
           </Box>
 
           {/* Dialog per il login iniziale */}
@@ -883,6 +1025,146 @@ const Home = () => {
               </GlassButton>
             </DialogActions>
           </Dialog>
+          {/* Dialog per calcolare la Daily Key */}
+          <Dialog
+            open={openDailyKeyDialog}
+            onClose={handleCloseDailyKeyDialog}
+            PaperProps={{
+              sx: {
+                borderRadius: "20px",
+                background: "rgba(255, 255, 255, 0.95)",
+                backdropFilter: "blur(10px)",
+                boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2)",
+                border: "1px solid rgba(255, 255, 255, 0.2)",
+                overflow: "hidden",
+                width: "100%",
+                maxWidth: "500px",
+              },
+            }}
+          >
+            <StyledDialogTitle>
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                <KeyIcon sx={{ mr: 1 }} />
+                Calcola Daily Key
+              </Box>
+            </StyledDialogTitle>
+            <DialogContent sx={{ p: 3 }}>
+              <Box sx={{ my: 1 }}>
+                <TextField
+                  margin="dense"
+                  label="Master Key (hex)"
+                  fullWidth
+                  value={dailyKeyMasterKey}
+                  onChange={(e) => setDailyKeyMasterKey(e.target.value)}
+                  variant="outlined"
+                  sx={{ mb: 2 }}
+                  InputProps={{
+                    sx: { borderRadius: "12px" },
+                  }}
+                />
+                {/* Imposta in sola lettura questi campi per evitare discrepanze */}
+                <TextField
+                  margin="dense"
+                  label="Vehicle ID"
+                  fullWidth
+                  value={vehicleId}
+                  disabled
+                  variant="outlined"
+                  sx={{ mb: 2 }}
+                  InputProps={{
+                    sx: { borderRadius: "12px" },
+                  }}
+                />
+                <TextField
+                  margin="dense"
+                  label="Data di Inizio"
+                  type="date"
+                  fullWidth
+                  InputLabelProps={{ shrink: true }}
+                  value={initDate}
+                  disabled
+                  variant="outlined"
+                  sx={{ mb: 2 }}
+                  InputProps={{
+                    sx: { borderRadius: "12px" },
+                  }}
+                />
+                <TextField
+                  margin="dense"
+                  label="Data per Daily Key"
+                  type="date"
+                  fullWidth
+                  InputLabelProps={{ shrink: true }}
+                  value={dailyKeyDate}
+                  onChange={(e) => setDailyKeyDate(e.target.value)}
+                  variant="outlined"
+                  InputProps={{
+                    sx: { borderRadius: "12px" },
+                  }}
+                />
+
+                {calculatedDailyKey && (
+                  <Box sx={{ mt: 3, p: 2, bgcolor: "rgba(100, 65, 165, 0.1)", borderRadius: "12px" }}>
+                    <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                      Daily Key calcolata:
+                    </Typography>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <TextField
+                        fullWidth
+                        variant="outlined"
+                        value={calculatedDailyKey}
+                        InputProps={{
+                          readOnly: true,
+                          sx: {
+                            fontFamily: "monospace",
+                            fontSize: "0.85rem",
+                            borderRadius: "12px",
+                            bgcolor: "white",
+                          },
+                        }}
+                        size="small"
+                      />
+                      <Tooltip title={dailyKeyCopied ? "Copiato!" : "Copia negli appunti"}>
+                        <IconButton
+                          onClick={handleCopyDailyKey}
+                          color="primary"
+                          sx={{
+                            bgcolor: dailyKeyCopied ? "rgba(100, 65, 165, 0.2)" : "transparent",
+                            transition: "background-color 0.3s ease",
+                          }}
+                        >
+                          <ContentCopyIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                  </Box>
+                )}
+
+                {dailyKeyError && (
+                  <Alert severity="error" sx={{ mt: 2, borderRadius: "12px" }}>
+                    {dailyKeyError}
+                  </Alert>
+                )}
+              </Box>
+            </DialogContent>
+            <DialogActions sx={{ p: 3, pt: 0 }}>
+              <GlassButton onClick={handleCloseDailyKeyDialog} variant="outlined" sx={{ mr: 1 }}>
+                Chiudi
+              </GlassButton>
+              <GlassButton
+                onClick={handleCalculateDailyKey}
+                variant="contained"
+                disabled={calculatingDailyKey}
+                startIcon={calculatingDailyKey ? <CircularProgress size={20} color="inherit" /> : <CalculateIcon />}
+                sx={{
+                  background: "linear-gradient(45deg, #2a0845 0%, #6441A5 100%)",
+                  color: "white",
+                }}
+              >
+                {calculatingDailyKey ? "Calcolando..." : "Calcola"}
+              </GlassButton>
+            </DialogActions>
+          </Dialog>
         </Box>
       </Fade>
     </Box>
@@ -890,4 +1172,3 @@ const Home = () => {
 }
 
 export default Home
-
