@@ -1,4 +1,5 @@
 # 🔐 DecentralizedBlackbox
+![Dashboard Example](./images/logo-nobg.png)
 
 **DecentralizedBlackbox** is an IoT project that leverages LoRa, ESP32, and blockchain technologies (IOTA EVM and SUI) to create a decentralized "blackbox." The goal is to collect data from remote devices and notarize it on blockchain to ensure integrity, security, and transparency.
 
@@ -138,7 +139,7 @@ The scripts are designed to run in a secure environment and will output status l
 The web application offers an intuitive interface for monitoring IoT devices and visualizing collected data.
 
 
-### Home Dashboard - Platform Selector
+### 🏠 Home Dashboard - Platform Selector
 
 ![Dashboard Example](./images/webapp6.png)
 
@@ -151,14 +152,14 @@ The user can navigate between SUI or IOTA depending where it's device's data are
 
 The homepage also allows setting user credentials that are crucial to the decrypting part like a nickname, the vehicle ID and the initial registered device date.
 
-### Daily Key Calculator
+### 🗝️ Daily Key Calculator
 
 ![Dashboard Example](./images/webapp8.png)
 
 
 This section is all about computing the daily key for certain days to let other users watch the datas related to that day, witouth compromising the master key of the owner.
 
-### Dashboard
+### 💻 Dashboard
 
 ![Dashboard Example](./images/webapp1.png)
 
@@ -166,20 +167,20 @@ SUI and IOTA Dashboard are the same. We have two options depending on our intere
 - We can see the clear datas without using any key, just the contract delivered to the user, that is associated to the sensor.
 - We can use our master/daily key to see the related encrypted datas of a certain day.
 
-#### Clear datas
+#### 📊 Clear datas
 
-- Temperature
+- 🌡  Temperature
 ![Dashboard Example](./images/webapp2.png)
 
 In the dashboard we can see the temperature
 
-- Gyroscope
+- 🌀 Gyroscope
 
 As well the three axis of the gyroscope 
 
 ![Dashboard Example](./images/webapp3.png)
 
-#### Encrypted Datas
+#### 📊 Encrypted Datas
 
 As we can see after just inserting the master key the button about showing the encrypted datas has been clickable
 
@@ -188,6 +189,8 @@ As we can see after just inserting the master key the button about showing the e
 After clicking it (we can choose to see all the datas in the same dashboard) encrypted payloads are decrypted and being plotted.
 
 ![Dashboard Example](./images/webapp5.png)
+
+The data encrypted shown are Accelerometer and GPS Location.
 
  
 
