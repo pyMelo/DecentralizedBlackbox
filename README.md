@@ -120,9 +120,9 @@ The scripts are designed to run in a secure environment and will output status l
 ## 🔄 System Flow
 
 1. **Data Collection:**  
-   The ESP32 device gathers data from sensors and transmits it over LoRa. The firmware supports multiple sensor configurations, ensuring flexibility for various IoT scenarios.
+   TThe ESP32 gathers sensor data.
 
-2. **Transmission via TTN:**  
+2. **Transmission using LoRaWAN via TTN:**  
    TTN receives the data and forwards it to the MQTT broker. TTN integration ensures that devices can operate in low-power environments while maintaining reliable data transmission.
 
 3. **Blockchain Notarization:**  
@@ -135,19 +135,63 @@ The scripts are designed to run in a secure environment and will output status l
 
 ## 🌐 Web Application
 
-The web application offers an intuitive interface for monitoring IoT devices and visualizing collected data. Key features include:
+The web application offers an intuitive interface for monitoring IoT devices and visualizing collected data.
 
-- **Real-Time Data Streams:**
-  Visualize sensor readings as they come in.
 
-- **Blockchain Transaction Details:**
-  Track which data points have been securely notarized.
+### Home Dashboard - Platform Selector
 
-- **Device Management:**
-  Add, remove, and update IoT devices remotely.
+![Dashboard Example](./images/webapp6.png)
 
-- **User Access Control:**
-  Ensure secure logins and permissions for different roles.
+
+The user can navigate between SUI or IOTA depending where it's device's data are deployed to. 
+
+![Dashboard Example](./images/webapp7.png)
+
+
+
+The homepage also allows setting user credentials that are crucial to the decrypting part like a nickname, the vehicle ID and the initial registered device date.
+
+### Daily Key Calculator
+
+![Dashboard Example](./images/webapp8.png)
+
+
+This section is all about computing the daily key for certain days to let other users watch the datas related to that day, witouth compromising the master key of the owner.
+
+### Dashboard
+
+![Dashboard Example](./images/webapp1.png)
+
+SUI and IOTA Dashboard are the same. We have two options depending on our interest. 
+- We can see the clear datas without using any key, just the contract delivered to the user, that is associated to the sensor.
+- We can use our master/daily key to see the related encrypted datas of a certain day.
+
+#### Clear datas
+
+- Temperature
+![Dashboard Example](./images/webapp2.png)
+
+In the dashboard we can see the temperature
+
+- Gyroscope
+
+As well the three axis of the gyroscope 
+
+![Dashboard Example](./images/webapp3.png)
+
+#### Encrypted Datas
+
+As we can see after just inserting the master key the button about showing the encrypted datas has been clickable
+
+![Dashboard Example](./images/webapp4.png)
+
+After clicking it (we can choose to see all the datas in the same dashboard) encrypted payloads are decrypted and being plotted.
+
+![Dashboard Example](./images/webapp5.png)
+
+ 
+
+
 
 ---
 
