@@ -172,13 +172,19 @@ SUI and IOTA Dashboard are the same. We have two options depending on our intere
 #### 📊 Clear datas
 
 - 🌡  Temperature
-![Dashboard Example](./images/webapp2.png)
+
 
 In the dashboard we can see the temperature
+
+
+
+![Dashboard Example](./images/webapp2.png)
 
 - 🌀 Gyroscope
 
 As well the three axis of the gyroscope 
+
+
 
 ![Dashboard Example](./images/webapp3.png)
 
