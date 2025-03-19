@@ -5,7 +5,7 @@ async function main() {
   const [deployer] = await ethers.getSigners(); // Using second account
   console.log("Deploying contracts with the account:", deployer.address);
 
-  const contractName = await ethers.getContractFactory("SensorDataBatch", deployer);
+  const contractName = await ethers.getContractFactory("SensorData", deployer);
   const contract = await contractName.deploy();
   
   await contract.waitForDeployment();

@@ -12,6 +12,7 @@
     "@mysten/bcs": "0.3.0",
     "@mysten/sui": "^1.21.1",
     "@mysten/sui.js": "^0.1.0",
+    "@openzeppelin/contracts": "^5.2.0",
     "aedes": "^0.51.3",
     "axios": "^1.8.1",
     "base58": "^2.0.1",

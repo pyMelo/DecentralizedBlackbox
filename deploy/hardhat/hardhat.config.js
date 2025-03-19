@@ -6,7 +6,7 @@ dotenv.config({path:".env"})
 
 
 module.exports = {
-  solidity: "0.8.18", // Specify the Solidity version
+  solidity: "0.8.20", // Specify the Solidity version
   networks: {
     IotaTestnet: {
       url: "https://json-rpc.evm.testnet.iotaledger.net",

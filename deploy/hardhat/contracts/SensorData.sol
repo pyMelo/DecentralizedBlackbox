@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-contract SensorDataBatch {
+contract SensorData {
     struct SensorBatch {
         uint256 timestamp; // Complete timestamp of the recording
         string hexData;    // Data received in hexadecimal format
