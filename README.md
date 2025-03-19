@@ -1,5 +1,7 @@
 # 🔐 DecentralizedBlackbox
-![Dashboard Example](./images/logo-nobg.png)
+<p align="center">
+  <img src="./images/logo-nobg.png" alt="Webapp Screenshot" width="600"/>
+</p>
 
 **DecentralizedBlackbox** is an IoT project that leverages LoRa, ESP32, and blockchain technologies (IOTA EVM and SUI) to create a decentralized "blackbox." The goal is to collect data from remote devices and notarize it on blockchain to ensure integrity, security, and transparency.
 
