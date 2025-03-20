@@ -37,6 +37,8 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy"
 import CalculateIcon from "@mui/icons-material/Calculate"
 import KeyIcon from "@mui/icons-material/Key"
 import { styled } from "@mui/system"
+import { generateDailyKeySHA256 } from '../utils/crypto'
+
 
 // Styled components
 const GlassCard = styled(Card)(({ theme }) => ({
@@ -143,39 +145,6 @@ const TechBadge = styled(Box)(({ theme }) => ({
   boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
   zIndex: 1,
 }))
-
-// Funzione per generare la daily key
-const generateDailyKeySHA256 = async (masterKey, vehicleId, initDate, date) => {
-  try {
-    // Rimuovi eventuali spazi e prefissi "0x" dalla master key
-    const cleanMasterKey = masterKey.replace(/\s+/g, "").toLowerCase().startsWith("0x")
-      ? masterKey.replace(/\s+/g, "").toLowerCase().slice(2)
-      : masterKey.replace(/\s+/g, "").toLowerCase()
-
-    // Converti la master key da hex a array di byte
-    const masterKeyBytes = new Uint8Array(cleanMasterKey.match(/.{1,2}/g).map((byte) => Number.parseInt(byte, 16)))
-
-    // Crea un messaggio combinando initDate, vehicleId e date nel formato corretto
-    const encoder = new TextEncoder()
-    const message = encoder.encode(`${initDate}-${vehicleId}-${date}`)
-
-    // Crea una chiave da masterKeyBytes
-    const key = await window.crypto.subtle.importKey("raw", masterKeyBytes, { name: "HMAC", hash: "SHA-256" }, false, [
-      "sign",
-    ])
-
-    // Firma il messaggio con la chiave
-    const signature = await window.crypto.subtle.sign("HMAC", key, message)
-
-    // Converti la firma in hex
-    return Array.from(new Uint8Array(signature))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("")
-  } catch (error) {
-    console.error("Error generating daily key:", error)
-    return null
-  }
-}
 
 const Home = () => {
   const navigate = useNavigate()
