@@ -22,7 +22,7 @@ public:
         struct tm timeinfo = {0};
         timeinfo.tm_year = 2025 - 1900;
         timeinfo.tm_mon  = 2;      // Marzo (0=Gennaio, 2=Marzo)
-        timeinfo.tm_mday = 14;
+        timeinfo.tm_mday = 22;
         timeinfo.tm_hour = 0;
         timeinfo.tm_min  = 0;
         timeinfo.tm_sec  = 0;

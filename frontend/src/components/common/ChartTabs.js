@@ -12,7 +12,7 @@ const ChartTabs = ({ activeTab, setActiveTab, tabs, darkMode }) => {
             label={tab}
             clickable
             onClick={() => setActiveTab(index)}
-            active={activeTab === index}
+            data-active={activeTab === index}  // Usare data-active al posto di active
             darkMode={darkMode}
           />
         ))}
@@ -22,4 +22,3 @@ const ChartTabs = ({ activeTab, setActiveTab, tabs, darkMode }) => {
 }
 
 export default ChartTabs
-

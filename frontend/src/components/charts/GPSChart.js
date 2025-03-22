@@ -1,255 +1,319 @@
-import React, { useState } from "react"
-import { Typography, CardContent, Box, Tooltip, IconButton, useTheme } from "@mui/material"
-import {
-  ScatterChart,
-  Scatter,
-  XAxis,
-  YAxis,
-  ZAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-  Label,
-} from "recharts"
-import { GlassCard } from "../ui/StyledComponents"
-import InfoIcon from "@mui/icons-material/Info"
-import LocationOnIcon from "@mui/icons-material/LocationOn"
-import MyLocationIcon from "@mui/icons-material/MyLocation"
+import React, { useState } from "react";
+import { 
+  MapContainer, 
+  TileLayer, 
+  Marker, 
+  Popup, 
+  Polyline, 
+  Circle 
+} from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+import L from "leaflet";
 
-const CustomTooltip = ({ active, payload, darkMode }) => {
-  if (active && payload && payload.length) {
-    return (
-      <Box
-        sx={{
-          background: darkMode ? "rgba(30,30,40,0.9)" : "rgba(255,255,255,0.9)",
-          border: "none",
-          borderRadius: "8px",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-          p: 1.5,
-          minWidth: 180,
-        }}
-      >
-        <Typography
-          variant="subtitle2"
-          sx={{ color: darkMode ? "white" : "black", fontWeight: 600, mb: 0.5 }}
-        >
-          Posizione
-        </Typography>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
-          <LocationOnIcon sx={{ color: "#A865C9" }} />
-          <Typography variant="body2" sx={{ color: darkMode ? "white" : "black" }}>
-            <span style={{ fontWeight: 600 }}>Lat:</span> {payload[0].payload.latitude}
-          </Typography>
-        </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <LocationOnIcon sx={{ color: "#6441A5" }} />
-          <Typography variant="body2" sx={{ color: darkMode ? "white" : "black" }}>
-            <span style={{ fontWeight: 600 }}>Long:</span> {payload[0].payload.longitude}
-          </Typography>
-        </Box>
-        <Typography
-          variant="caption"
-          sx={{ color: darkMode ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)", display: "block", mt: 1 }}
-        >
-          {payload[0].payload.time}
-        </Typography>
-      </Box>
-    )
-  }
-  return null
-}
+// Fix per le icone di Leaflet
+// Nota: Dovrai avere questi file nella cartella public
+const DefaultIcon = L.icon({
+  iconUrl: "/marker-icon.png",
+  shadowUrl: "/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+});
 
-const GPSChart = ({ data, darkMode }) => {
-  const [showInfo, setShowInfo] = useState(false)
-  const theme = useTheme()
-  
-  // Trasforma i dati per il grafico a dispersione
-  const scatterData = data.map((item) => ({
-    ...item,
-    x: item.longitude,
-    y: item.latitude,
-    z: 1, // Dimensione del punto
-  }))
+L.Marker.prototype.options.icon = DefaultIcon;
+
+const GPSMap = ({ data, darkMode = false }) => {
+  const [showInfo, setShowInfo] = useState(false);
   
   // Calcola il centro della mappa (media di lat e long)
   const centerLat = data.length > 0 
     ? data.reduce((sum, item) => sum + item.latitude, 0) / data.length 
-    : 0
+    : 45.4642; // Default a una posizione in Italia se non ci sono dati
+  
   const centerLong = data.length > 0 
     ? data.reduce((sum, item) => sum + item.longitude, 0) / data.length 
-    : 0
+    : 9.1900; // Default a una posizione in Italia se non ci sono dati
   
-  // Calcola il raggio per determinare i limiti della mappa
+  // Calcola il raggio per determinare lo zoom della mappa
   const calcRadius = () => {
-    if (data.length <= 1) return 5
+    if (data.length <= 1) return 500; // metri
     
-    let maxDist = 0
+    let maxDist = 0;
     data.forEach(item => {
       const dist = Math.sqrt(
         Math.pow(item.latitude - centerLat, 2) + 
         Math.pow(item.longitude - centerLong, 2)
-      )
-      if (dist > maxDist) maxDist = dist
-    })
+      ) * 111000; // Conversione approssimativa da gradi a metri (1 grado = ~111km)
+      
+      if (dist > maxDist) maxDist = dist;
+    });
     
-    return Math.max(maxDist * 1.5, 5) // Assicura un minimo di raggio
-  }
+    return Math.max(maxDist * 1.2, 500); // Assicura un minimo di raggio
+  };
   
-  const radius = calcRadius()
+  const radius = calcRadius();
   
-  // Calcola i limiti degli assi
-  const minLat = centerLat - radius
-  const maxLat = centerLat + radius
-  const minLong = centerLong - radius
-  const maxLong = centerLong + radius
+  // Determina lo zoom in base al raggio
+  const getZoomLevel = (radiusInMeters) => {
+    const zoom = Math.log2(40000000 / radiusInMeters);
+    return Math.min(Math.max(Math.round(zoom), 1), 18); // Limita lo zoom tra 1 e 18
+  };
+  
+  const zoom = getZoomLevel(radius);
+
+  // Crea le coordinate per la polyline dai punti GPS
+  const polylinePositions = data.map(point => [point.latitude, point.longitude]);
+
+  // Stili per il componente
+  const styles = {
+    card: {
+      borderRadius: '8px',
+      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+      backgroundColor: darkMode ? '#1e1e2f' : 'white',
+      color: darkMode ? 'white' : 'black',
+      overflow: 'hidden'
+    },
+    cardHeader: {
+      padding: '16px',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      borderBottom: `1px solid ${darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`
+    },
+    title: {
+      margin: 0,
+      fontSize: '18px',
+      fontWeight: 600,
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px'
+    },
+    iconButton: {
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      borderRadius: '4px',
+      padding: '4px',
+      color: darkMode ? 'white' : 'black',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    cardContent: {
+      padding: '16px'
+    },
+    infoBox: {
+      marginBottom: '16px',
+      padding: '12px',
+      borderRadius: '8px',
+      backgroundColor: darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+    },
+    infoTitle: {
+      fontSize: '14px',
+      fontWeight: 600,
+      marginBottom: '8px'
+    },
+    infoGrid: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: '16px'
+    },
+    infoLabel: {
+      fontSize: '12px',
+      color: darkMode ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)',
+      marginBottom: '4px'
+    },
+    infoValue: {
+      fontSize: '14px',
+      display: 'flex',
+      gap: '8px'
+    },
+    bold: {
+      fontWeight: 600
+    },
+    mapContainer: {
+      height: '300px',
+      width: '100%',
+      borderRadius: '8px',
+      overflow: 'hidden'
+    }
+  };
+
+  // Icone SVG inline
+  const NavigationIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" 
+      stroke={darkMode ? 'white' : 'black'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>
+    </svg>
+  );
+
+  const InfoIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" 
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"></circle>
+      <line x1="12" y1="16" x2="12" y2="12"></line>
+      <line x1="12" y1="8" x2="12.01" y2="8"></line>
+    </svg>
+  );
+
+  const MapPinIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" 
+      stroke="#6441A5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+      <circle cx="12" cy="10" r="3"></circle>
+    </svg>
+  );
 
   return (
-    <GlassCard darkMode={darkMode}>
-      <CardContent>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-          <Typography
-            variant="h6"
-            sx={{
-              fontWeight: 600,
-              color: darkMode ? "white" : "black",
-              display: "flex",
-              alignItems: "center",
-              gap: 1,
-            }}
-          >
-            <MyLocationIcon sx={{ color: "#6441A5" }} />
-            Mappa GPS
-          </Typography>
-          <Tooltip title="Mostra statistiche">
-            <IconButton 
-              size="small" 
-              onClick={() => setShowInfo(!showInfo)}
-              sx={{ color: darkMode ? "white" : "black" }}
-            >
-              <InfoIcon />
-            </IconButton>
-          </Tooltip>
-        </Box>
-        
+    <div style={styles.card}>
+      <div style={styles.cardHeader}>
+        <h3 style={styles.title}>
+          <NavigationIcon />
+          Mappa GPS
+        </h3>
+        <button 
+          style={styles.iconButton} 
+          onClick={() => setShowInfo(!showInfo)}
+          title="Mostra statistiche"
+        >
+          <InfoIcon />
+        </button>
+      </div>
+      <div style={styles.cardContent}>
         {showInfo && (
-          <Box 
-            sx={{ 
-              mb: 2, 
-              p: 1.5, 
-              borderRadius: "8px", 
-              background: darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)",
-            }}
-          >
-            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: darkMode ? "white" : "black" }}>
-              Informazioni GPS
-            </Typography>
+          <div style={styles.infoBox}>
+            <h4 style={styles.infoTitle}>Informazioni GPS</h4>
             
-            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, justifyContent: "space-between" }}>
-              <Box>
-                <Typography variant="caption" sx={{ color: darkMode ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)" }}>
-                  Posizione Media
-                </Typography>
-                <Box sx={{ display: "flex", gap: 2 }}>
-                  <Typography variant="body2" sx={{ color: darkMode ? "white" : "black" }}>
-                    <span style={{ fontWeight: 600 }}>Lat:</span> {centerLat.toFixed(2)}
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: darkMode ? "white" : "black" }}>
-                    <span style={{ fontWeight: 600 }}>Long:</span> {centerLong.toFixed(2)}
-                  </Typography>
-                </Box>
-              </Box>
+            <div style={styles.infoGrid}>
+              <div>
+                <p style={styles.infoLabel}>Posizione Media</p>
+                <div style={styles.infoValue}>
+                  <p>
+                    <span style={styles.bold}>Lat:</span> {centerLat.toFixed(6)}
+                  </p>
+                  <p>
+                    <span style={styles.bold}>Long:</span> {centerLong.toFixed(6)}
+                  </p>
+                </div>
+              </div>
               
-              <Box>
-                <Typography variant="caption" sx={{ color: darkMode ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)" }}>
-                  Campioni
-                </Typography>
-                <Typography variant="body2" sx={{ color: darkMode ? "white" : "black" }}>
-                  <span style={{ fontWeight: 600 }}>{data.length}</span> punti rilevati
-                </Typography>
-              </Box>
-            </Box>
-          </Box>
+              <div>
+                <p style={styles.infoLabel}>Campioni</p>
+                <p style={styles.infoValue}>
+                  <span style={styles.bold}>{data.length}</span> punti rilevati
+                </p>
+              </div>
+            </div>
+          </div>
         )}
         
-        <ResponsiveContainer width="100%" height={300}>
-          <ScatterChart
-            margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
+        {/* Mappa Leaflet */}
+        <div style={styles.mapContainer}>
+          <MapContainer 
+            center={[centerLat, centerLong]} 
+            zoom={zoom} 
+            style={{ height: "100%", width: "100%" }}
           >
-            <CartesianGrid 
-              strokeDasharray="3 3" 
-              stroke={darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}
-            />
-            <XAxis 
-              type="number" 
-              dataKey="x" 
-              name="Longitudine" 
-              domain={[minLong, maxLong]}
-              stroke={darkMode ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)"}
-              label={{ 
-                value: 'Longitudine', 
-                position: 'bottom',
-                style: { textAnchor: 'middle', fill: darkMode ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)" }
-              }}
-            />
-            <YAxis 
-              type="number" 
-              dataKey="y" 
-              name="Latitudine" 
-              domain={[minLat, maxLat]}
-              stroke={darkMode ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)"}
-              label={{ 
-                value: 'Latitudine', 
-                angle: -90, 
-                position: 'left',
-                style: { textAnchor: 'middle', fill: darkMode ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)" }
-              }}
-            />
-            <ZAxis type="number" dataKey="z" range={[60, 60]} />
-            <RechartsTooltip content={<CustomTooltip darkMode={darkMode} />} />
-            
-            {/* Linee di riferimento per il centro */}
-            <ReferenceLine 
-              x={centerLong} 
-              stroke="#A865C9" 
-              strokeDasharray="3 3" 
-              strokeOpacity={0.5}
-            />
-            <ReferenceLine 
-              y={centerLat} 
-              stroke="#A865C9" 
-              strokeDasharray="3 3" 
-              strokeOpacity={0.5}
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             
             {/* Punto centrale */}
-            <Scatter 
-              name="Centro" 
-              data={[{x: centerLong, y: centerLat, z: 1}]} 
-              fill="#A865C9" 
-              shape="cross"
-            />
+            <Marker position={[centerLat, centerLong]}>
+              <Popup>
+                <div style={{ textAlign: "center" }}>
+                  <p style={{ fontWeight: 600, fontSize: "14px" }}>
+                    Posizione Media
+                  </p>
+                  <p style={{ fontSize: "12px" }}>
+                    Lat: {centerLat.toFixed(6)}
+                  </p>
+                  <p style={{ fontSize: "12px" }}>
+                    Long: {centerLong.toFixed(6)}
+                  </p>
+                </div>
+              </Popup>
+            </Marker>
             
-            {/* Dati GPS */}
-            <Scatter 
-              name="Posizioni GPS" 
-              data={scatterData} 
-              fill="#6441A5"
-              shape={(props) => {
-                const { cx, cy } = props
-                return (
-                  <svg>
-                    <circle cx={cx} cy={cy} r={6} fill="#6441A5" stroke="#fff" strokeWidth={1} />
-                    <circle cx={cx} cy={cy} r={10} fill="none" stroke="#6441A5" strokeWidth={1} strokeOpacity={0.5} />
-                  </svg>
-                )
+            {/* Cerchio di riferimento */}
+            <Circle 
+              center={[centerLat, centerLong]}
+              radius={radius}
+              pathOptions={{ 
+                color: "#6441A5", 
+                fillColor: "#6441A5", 
+                fillOpacity: 0.1 
               }}
             />
-          </ScatterChart>
-        </ResponsiveContainer>
-      </CardContent>
-    </GlassCard>
-  )
-}
+            
+            {/* Polyline che collega tutti i punti */}
+            {data.length > 1 && (
+              <Polyline 
+                positions={polylinePositions}
+                pathOptions={{ 
+                  color: "#6441A5", 
+                  weight: 3,
+                  opacity: 0.7,
+                  dashArray: "5, 5"
+                }}
+              />
+            )}
+            
+            {/* Tutti i punti GPS */}
+            {data.map((point, index) => (
+              <Marker 
+                key={index} 
+                position={[point.latitude, point.longitude]}
+                icon={L.divIcon({
+                  html: `<div style="
+                    background-color: #6441A5;
+                    width: 12px;
+                    height: 12px;
+                    border-radius: 50%;
+                    border: 2px solid white;
+                    box-shadow: 0 0 4px rgba(0,0,0,0.3);
+                  "></div>`,
+                  className: "",
+                  iconSize: [16, 16],
+                  iconAnchor: [8, 8],
+                })}
+              >
+                <Popup>
+                  <div>
+                    <p style={{ fontWeight: 600, fontSize: "14px", marginBottom: "4px" }}>
+                      Posizione
+                    </p>
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}>
+                      <MapPinIcon />
+                      <p style={{ fontSize: "12px" }}>
+                        <span style={{ fontWeight: 600 }}>Lat:</span> {point.latitude}
+                      </p>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                      <MapPinIcon />
+                      <p style={{ fontSize: "12px" }}>
+                        <span style={{ fontWeight: 600 }}>Long:</span> {point.longitude}
+                      </p>
+                    </div>
+                    {point.time && (
+                      <p style={{ 
+                        fontSize: "10px", 
+                        marginTop: "8px", 
+                        opacity: 0.7 
+                      }}>
+                        {point.time}
+                      </p>
+                    )}
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
+          </MapContainer>
+        </div>
+      </div>
+    </div>
+  );
+};
 
-export default GPSChart
+export default GPSMap;

@@ -66,7 +66,6 @@ const SUI = () => {
       setVehicleId(savedVehicleId)
       setInitDate(savedInitDate)
     }
-
     // Impostiamo la modalità chiara come predefinita
     setDarkMode(false)
   }, [])
@@ -127,18 +126,35 @@ const SUI = () => {
       // Estrae i dati dal payload della transazione
       const sensorRecords = filteredTx
         .map((tx) => {
-          const hexData = tx.transaction?.data?.transaction?.inputs[1]?.value || ""
-          const rawBytes = hexStringToBytes(hexData)
+          const rawValue = tx.transaction?.data?.transaction?.inputs[1]?.value;
+          const hexData = typeof rawValue === 'string' ? rawValue : String(rawValue);
+          const rawBytes = hexStringToBytes(hexData);
 
-          if (rawBytes.length < 29) return null // Verifica che il payload sia valido
+          // Verifica che il payload sia valido: IV (16) + clear block (7) + encrypted block (minimo 11) = almeno 35 byte
+          if (rawBytes.length < 35) return null
 
+          const effectiveIV = rawBytes.slice(0, 16)
+          const clearBlockLength = rawBytes[16]
+          // Clear block:
+          // byte 16: lunghezza (6)
+          // byte 17: marker temperatura (0x01)
+          // byte 18: temperatura
+          // byte 19: marker giroscopio (0x03)
+          // byte 20: gx, byte 21: gy, byte 22: gz
           const temperature = rawBytes[18]
           const gyroX = (rawBytes[20] > 127 ? rawBytes[20] - 256 : rawBytes[20]) / 100
           const gyroY = (rawBytes[21] > 127 ? rawBytes[21] - 256 : rawBytes[21]) / 100
           const gyroZ = (rawBytes[22] > 127 ? rawBytes[22] - 256 : rawBytes[22]) / 100
-          const accel = rawBytes[25]
-          const gpsLat = rawBytes[27]
-          const gpsLon = rawBytes[28]
+
+          // Blocco cifrato:
+          // byte 23: lunghezza blocco cifrato (ad es. 11)
+          // byte 24: marker accelerometro (0x04)
+          // byte 25: dato accelerometro
+          // byte 26: marker GPS (0x05)
+          // byte 27-30: latitudine (int32 little-endian)
+          // byte 31-34: longitudine (int32 little-endian)
+          const encryptedBlockLength = rawBytes[23]
+          const encryptedData = rawBytes.slice(24, 24 + encryptedBlockLength)
 
           return {
             time: new Date(Number(tx.timestampMs)).toLocaleTimeString(),
@@ -147,13 +163,10 @@ const SUI = () => {
             gyroX,
             gyroY,
             gyroZ,
-            accel,
-            gpsLat,
-            gpsLon,
             rawData: {
-              effectiveIV: rawBytes.slice(0, 16),
+              effectiveIV,
               clearBlock: {
-                clearBlockLength: rawBytes[16],
+                clearBlockLength,
                 sensorMarker: rawBytes[17],
                 temperature,
                 gyroMarker: rawBytes[19],
@@ -162,8 +175,8 @@ const SUI = () => {
                 gz: gyroZ,
               },
               encryptedBlock: {
-                encryptedBlockLength: rawBytes[23],
-                encryptedData: rawBytes.slice(24, 24 + rawBytes[23]),
+                encryptedBlockLength,
+                encryptedData,
                 decryptedData: null,
               },
             },
@@ -218,14 +231,20 @@ const SUI = () => {
             let latitude = null
             let longitude = null
 
-            // Scansione del payload per trovare i marker
+            // Scansione dei byte decifrati per individuare i marker
             for (let i = 0; i < decryptedBytes.length; i++) {
               if (decryptedBytes[i] === 0x04 && i + 1 < decryptedBytes.length) {
                 acceleration = decryptedBytes[i + 1]
               }
-              if (decryptedBytes[i] === 0x05 && i + 2 < decryptedBytes.length) {
-                latitude = decryptedBytes[i + 1]
-                longitude = decryptedBytes[i + 2]
+              if (decryptedBytes[i] === 0x05 && i + 8 <= decryptedBytes.length) {
+                const latBytes = decryptedBytes.slice(i + 1, i + 5)
+                const lonBytes = decryptedBytes.slice(i + 5, i + 9)
+                // Conversione da little-endian a int32
+                latitude = latBytes[0] | (latBytes[1] << 8) | (latBytes[2] << 16) | (latBytes[3] << 24)
+                longitude = lonBytes[0] | (lonBytes[1] << 8) | (lonBytes[2] << 16) | (lonBytes[3] << 24)
+                // Normalizzazione in float (lat/lon = valore intero / 1e7)
+                latitude = latitude / 1e7
+                longitude = longitude / 1e7
               }
             }
 
@@ -713,4 +732,3 @@ const SUI = () => {
 }
 
 export default SUI
-

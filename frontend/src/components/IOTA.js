@@ -86,70 +86,178 @@ const IOTA = () => {
   }
 
   // Funzione per decodificare il payload
-  const decodePayload = async (hex, dailyKeyHex, isClear = false) => {
-    const cleanHex = hex.replace(/\s+/g, "")
-    const bytes = hexStringToBytes(cleanHex)
+ // Function to decode the updated payload
+// Function to decode the updated payload with extensive console logging
+const decodePayload = async (hex, dailyKeyHex, isClear = false) => {
+  console.log("-------- DECODIFICA PAYLOAD --------")
+  console.log("Hex payload:", hex)
+  
+  // Rimuovi il prefisso 0x se presente
+  const cleanHex = hex.startsWith("0x") 
+    ? hex.substring(2).replace(/\s+/g, "") 
+    : hex.replace(/\s+/g, "")
+  console.log("Clean hex:", cleanHex)
+  
+  const bytes = hexStringToBytes(cleanHex)
+  console.log("Bytes array length:", bytes.length)
+  console.log("Raw bytes:", Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(' '))
 
-    // Decodifica del blocco in chiaro
-    const effectiveIV = bytes.slice(0, 16)
-    const clearBlockLength = bytes[16] // atteso 6
-    const sensorMarker = bytes[17] // atteso 0x01
-    const temperature = bytes[18]
-    const gyroMarker = bytes[19] // atteso 0x03
+  // Decodifica del blocco in chiaro
+  const effectiveIV = bytes.slice(0, 16)
+  console.log("Effective IV:", Array.from(effectiveIV).map(b => b.toString(16).padStart(2, '0')).join(' '))
+  
+  // CORREZIONE: Posizione corretta per clearBlockLength
+  const clearBlockLength = bytes[16]
+  console.log("Clear block length:", clearBlockLength)
+  
+  // CORREZIONE: Verificare che clearBlockLength sia un valore ragionevole (ad es. 6)
+  if (clearBlockLength !== 6) {
+    console.warn(`Valore clearBlockLength (${clearBlockLength}) non corrisponde al valore atteso (6)`)
+  }
+  
+  const sensorMarker = bytes[17]
+  console.log("Sensor marker:", "0x" + sensorMarker.toString(16))
+  
+  const temperature = bytes[18]
+  console.log("Temperature:", temperature, "°C")
+  
+  const gyroMarker = bytes[19]
+  console.log("Gyro marker:", "0x" + gyroMarker.toString(16))
 
-    // Giroscopio
-    const gyroRawX = bytes[20]
-    const gyroRawY = bytes[21]
-    const gyroRawZ = bytes[22]
-    const toSigned8Bit = (byte) => (byte > 127 ? byte - 256 : byte)
-    const gx = toSigned8Bit(gyroRawX) / 100
-    const gy = toSigned8Bit(gyroRawY) / 100
-    const gz = toSigned8Bit(gyroRawZ) / 100
+  // Giroscopio
+  const gyroRawX = bytes[20]
+  const gyroRawY = bytes[21]
+  const gyroRawZ = bytes[22]
+  console.log("Gyro raw values - X:", gyroRawX, "Y:", gyroRawY, "Z:", gyroRawZ)
+  
+  const toSigned8Bit = (byte) => (byte > 127 ? byte - 256 : byte)
+  const gx = toSigned8Bit(gyroRawX) / 100
+  const gy = toSigned8Bit(gyroRawY) / 100
+  const gz = toSigned8Bit(gyroRawZ) / 100
+  console.log("Gyro converted values - X:", gx.toFixed(2), "Y:", gy.toFixed(2), "Z:", gz.toFixed(2))
 
-    // Decodifica del blocco cifrato
-    const encryptedBlockLength = bytes[23] // atteso 5
-    const encryptedData = bytes.slice(24, 24 + encryptedBlockLength)
-    let decryptedData = null
+  // CORREZIONE: Posizione corretta per encryptedBlockLength
+  const encryptedBlockLength = bytes[23]
+  console.log("Encrypted block length:", encryptedBlockLength)
+  
+  // CORREZIONE: Verificare che encryptedBlockLength sia un valore ragionevole (ad es. 11)
+  if (encryptedBlockLength !== 11 && !isClear) {
+    console.warn(`Valore encryptedBlockLength (${encryptedBlockLength}) non corrisponde al valore atteso (11)`)
+  }
+  
+  // Estrai i dati crittografati solo se encryptedBlockLength > 0
+  const encryptedData = encryptedBlockLength > 0 
+    ? bytes.slice(24, 24 + encryptedBlockLength) 
+    : new Uint8Array(0)
+  console.log("Encrypted data (hex):", Array.from(encryptedData).map(b => b.toString(16).padStart(2, '0')).join(' '))
+  
+  let decryptedData = null
 
-    if (!isClear && dailyKeyHex) {
+  if (!isClear && dailyKeyHex && encryptedBlockLength > 0) {
+    console.log("Attempting decryption with daily key:", dailyKeyHex)
+    
+    try {
       const decryptedRaw = await decryptWithAES(encryptedData, effectiveIV, dailyKeyHex)
-
+      
       if (decryptedRaw) {
-        // Struttura attesa per i dati cifrati:
-        // Byte[0]: lunghezza (5)
-        // Byte[1]: marker accelerometro (0x04)
-        // Byte[2]: valore accelerometro (uint8_t)
-        // Byte[3]: marker GPS (0x05)
-        // Byte[4]: latitudine
-        // Byte[5]: longitudine
+        console.log("Decryption successful!")
+        console.log("Decrypted raw data:", Array.from(decryptedRaw).map(b => b.toString(16).padStart(2, '0')).join(' '))
+        
+        // Struttura aggiornata per i dati cifrati
+        const accelMarker = decryptedRaw[0]
+        console.log("Accelerometer marker:", "0x" + accelMarker.toString(16))
+        
+        const acceleration = decryptedRaw[1]
+        console.log("Acceleration value:", acceleration)
+        
+        const gpsMarker = decryptedRaw[2]
+        console.log("GPS marker:", "0x" + gpsMarker.toString(16))
+        
+        // Log dei bytes della latitudine
+        console.log("Latitude bytes:", 
+          decryptedRaw[3].toString(16).padStart(2, '0'), 
+          decryptedRaw[4].toString(16).padStart(2, '0'), 
+          decryptedRaw[5].toString(16).padStart(2, '0'), 
+          decryptedRaw[6].toString(16).padStart(2, '0')
+        )
+        
+        // Estrae latitudine (4 bytes, int32_t)
+        const latBytes = new Uint8Array([
+          decryptedRaw[3], 
+          decryptedRaw[4], 
+          decryptedRaw[5], 
+          decryptedRaw[6]
+        ])
+        
+        const latView = new DataView(latBytes.buffer)
+        const latScaled = latView.getInt32(0, true) // true per little-endian
+        console.log("Latitude raw int32:", latScaled)
+        
+        // Log dei bytes della longitudine
+        console.log("Longitude bytes:", 
+          decryptedRaw[7].toString(16).padStart(2, '0'), 
+          decryptedRaw[8].toString(16).padStart(2, '0'), 
+          decryptedRaw[9].toString(16).padStart(2, '0'), 
+          decryptedRaw[10].toString(16).padStart(2, '0')
+        )
+        
+        // Estrae longitudine (4 bytes, int32_t)
+        const lonBytes = new Uint8Array([
+          decryptedRaw[7], 
+          decryptedRaw[8], 
+          decryptedRaw[9], 
+          decryptedRaw[10]
+        ])
+        
+        const lonView = new DataView(lonBytes.buffer)
+        const lonScaled = lonView.getInt32(0, true) // true per little-endian
+        console.log("Longitude raw int32:", lonScaled)
+        
+        // Converte i valori scalati in gradi decimali (divisione per 1e7)
+        const latitude = latScaled / 10000000
+        const longitude = lonScaled / 10000000
+        console.log("Converted coordinates - Lat:", latitude.toFixed(7), "Lon:", longitude.toFixed(7))
+        
         decryptedData = {
-          acceleration: decryptedRaw[1],
-          latitude: decryptedRaw[3],
-          longitude: decryptedRaw[4],
+          acceleration,
+          latitude,
+          longitude,
+          latRaw: latScaled,
+          lonRaw: lonScaled
         }
+        
+        console.log("Final decrypted data object:", decryptedData)
+      } else {
+        console.error("Decryption failed!")
       }
+    } catch (error) {
+      console.error("Error during decryption:", error)
     }
-
-    return {
-      clearBlock: {
-        clearBlockLength,
-        sensorMarker,
-        temperature,
-        gyroMarker,
-        gx,
-        gy,
-        gz,
-      },
-      encryptedBlock: {
-        encryptedBlockLength,
-        encryptedData,
-        decryptedData,
-      },
-      computedTimestamp: 0,
-      effectiveIV,
-    }
+  } else {
+    console.log("Skipping decryption - isClear:", isClear, "dailyKeyHex provided:", !!dailyKeyHex, "encryptedBlockLength:", encryptedBlockLength)
   }
 
+  console.log("-------- FINE DECODIFICA --------")
+
+  return {
+    clearBlock: {
+      clearBlockLength,
+      sensorMarker,
+      temperature,
+      gyroMarker,
+      gx,
+      gy,
+      gz,
+    },
+    encryptedBlock: {
+      encryptedBlockLength,
+      encryptedData,
+      decryptedData,
+    },
+    computedTimestamp: 0,
+    effectiveIV,
+  }
+}
   // Fetch per dati in chiaro (senza decriptazione)
   const handleFetchClearData = async () => {
     if (!contractAddress) {
@@ -743,9 +851,8 @@ const IOTA = () => {
                                     variant="body2"
                                     sx={{ color: darkMode ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)" }}
                                   >
-                                    GPS: Lat {item.encryptedBlock.decryptedData.latitude}, Long{" "}
-                                    {item.encryptedBlock.decryptedData.longitude}
-                                    Long {item.encryptedBlock.decryptedData.longitude}
+                                    GPS: Lat {item.encryptedBlock.decryptedData.latitude.toFixed(7)} ({item.encryptedBlock.decryptedData.latRaw}), 
+                                    Long {item.encryptedBlock.decryptedData.longitude.toFixed(7)} ({item.encryptedBlock.decryptedData.lonRaw})
                                   </Typography>
                                 </>
                               )}
