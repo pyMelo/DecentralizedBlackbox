@@ -100,4 +100,69 @@ export const getEpochUTC = (dateStr) => {
       return null
     }
   }
-  
+  export const fetchAndDecryptIotaBlock = async (blockId, masterKeyHex, vehicleId, initDate, fetchDate) => {
+  try {
+    console.log(`🔍 Fetching IOTA block: ${blockId}`);
+    const response = await fetch(`https://api.testnet.iotaledger.net/api/core/v2/blocks/${blockId}`);
+    if (!response.ok) {
+      console.error("❌ Error fetching IOTA block:", response.status);
+      return null;
+    }
+    const data = await response.json();
+
+    if (!data.payload || !data.payload.data) {
+      console.log("❌ No payload found in this block.");
+      return null;
+    }
+
+    // Assume payload.data is a hex string that includes the IV (first 16 bytes) and the ciphertext.
+    let payloadHex = data.payload.data;
+    if (payloadHex.startsWith('0x')) {
+      payloadHex = payloadHex.slice(2);
+    }
+    const payloadBytes = hexStringToBytes(payloadHex);
+    if (payloadBytes.length < 16) {
+      console.error("❌ Payload too short to contain IV and ciphertext.");
+      return null;
+    }
+    // Extract effective IV (first 16 bytes) and the encrypted ciphertext (remaining bytes)
+    const effectiveIV = payloadBytes.slice(0, 16);
+    const encryptedBytes = payloadBytes.slice(16);
+
+    // Generate the daily key using your crypto utils.
+    const dailyKeyHex = await generateDailyKeySHA256(masterKeyHex, vehicleId, initDate, fetchDate);
+    console.log("Generated Daily Key (hex):", dailyKeyHex);
+
+    // Decrypt the ciphertext using AES-CTR with the generated daily key and effective IV.
+    const decryptedBytes = await decryptWithAES(encryptedBytes, effectiveIV, dailyKeyHex);
+    if (!decryptedBytes) {
+      console.error("❌ Decryption failed.");
+      return null;
+    }
+    // Convert decrypted bytes into a UTF-8 string.
+    const decoder = new TextDecoder();
+    const decryptedMessage = decoder.decode(decryptedBytes);
+
+    // Decode the tag if provided.
+    let tag = data.payload.tag || "";
+    if (tag.startsWith('0x')) {
+      tag = tag.slice(2);
+    }
+    const tagBytes = hexStringToBytes(tag);
+    const decodedTag = decoder.decode(tagBytes);
+
+    // Prepare the result object.
+    const result = {
+      blockId,
+      tag: decodedTag,
+      decryptedMessage,
+      timestamp: data.timestamp ? new Date(data.timestamp * 1000).toISOString() : "Unknown"
+    };
+
+    console.log("Decrypted Block Data:", result);
+    return result;
+  } catch (error) {
+    console.error("❌ Error in fetchAndDecryptIotaBlock:", error);
+    return null;
+  }
+};

@@ -26,7 +26,7 @@ import {
   IconButton,
   Alert,
 } from "@mui/material"
-import { useNavigate , Link } from "react-router-dom"
+import { useNavigate, Link } from "react-router-dom"
 import EditIcon from "@mui/icons-material/Edit"
 import AccountCircleIcon from "@mui/icons-material/AccountCircle"
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth"
@@ -37,8 +37,8 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy"
 import CalculateIcon from "@mui/icons-material/Calculate"
 import KeyIcon from "@mui/icons-material/Key"
 import { styled } from "@mui/system"
-import { generateDailyKeySHA256 } from '../utils/crypto'
-
+import { generateDailyKeySHA256 } from "../utils/crypto"
+import StorageIcon from "@mui/icons-material/Storage"
 
 // Styled components
 const GlassCard = styled(Card)(({ theme }) => ({
@@ -769,6 +769,120 @@ const Home = () => {
                 </CardActionArea>
               </PlatformCard>
             </Zoom>
+            <Zoom in={!loading} style={{ transitionDelay: !loading ? "900ms" : "0ms" }}>
+              <PlatformCard platform="iotaf">
+                <CardActionArea
+                  onClick={() => handleNavigate("/iotaf")}
+                  sx={{
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "center",
+                    background: "rgba(255, 255, 255, 0.05)",
+                    position: "relative",
+                    zIndex: 1,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      top: 16,
+                      right: 16,
+                      bgcolor: "rgba(255,255,255,0.1)",
+                      borderRadius: "50%",
+                      p: 1,
+                    }}
+                  >
+                    <StorageIcon sx={{ color: "white" }} />
+                  </Box>
+
+                  <Box
+                    sx={{
+                      position: "relative",
+                      width: "100%",
+                      height: "40%",
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      padding: "20px",
+                    }}
+                  >
+                    <CardMedia
+                      component="img"
+                      image="/iotaf.png"
+                      alt="IOTA Feeless"
+                      sx={{
+                        width: "auto",
+                        maxWidth: "80%",
+                        height: "auto",
+                        maxHeight: "100%",
+                        objectFit: "contain",
+                        filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.3))",
+                        transition: "transform 0.5s ease",
+                        "&:hover": {
+                          transform: "scale(1.05)",
+                        },
+                      }}
+                    />
+                  </Box>
+                  <CardContent>
+                    <Typography
+                      variant="h4"
+                      align="center"
+                      sx={{
+                        color: "white",
+                        fontWeight: 700,
+                        textShadow: "0 2px 10px rgba(0,0,0,0.3)",
+                        letterSpacing: "1px",
+                        mb: 1,
+                      }}
+                    >
+                      IOTA Feeless
+                    </Typography>
+                    <Divider sx={{ my: 1.5, bgcolor: "rgba(255,255,255,0.2)" }} />
+
+                    <Box sx={{ mt: 2, mb: 3, display: "flex", justifyContent: "center", gap: 1 }}>
+                      <Box
+                        sx={{
+                          px: 1.5,
+                          py: 0.5,
+                          bgcolor: "rgba(255,255,255,0.1)",
+                          borderRadius: 2,
+                          fontSize: "0.7rem",
+                          color: "white",
+                        }}
+                      >
+                        Database
+                      </Box>
+                      <Box
+                        sx={{
+                          px: 1.5,
+                          py: 0.5,
+                          bgcolor: "rgba(255,255,255,0.1)",
+                          borderRadius: 2,
+                          fontSize: "0.7rem",
+                          color: "white",
+                        }}
+                      >
+                        Feeless
+                      </Box>
+                    </Box>
+
+                    <Typography
+                      variant="body2"
+                      align="center"
+                      sx={{
+                        color: "rgba(255, 255, 255, 0.8)",
+                        maxWidth: "80%",
+                        mx: "auto",
+                      }}
+                    >
+                      Esplora le transazioni feeless di IOTA con accesso diretto al database PostgreSQL
+                    </Typography>
+                  </CardContent>
+                </CardActionArea>
+              </PlatformCard>
+            </Zoom>
           </Box>
 
           {/* Utility Bar */}
@@ -1141,3 +1255,4 @@ const Home = () => {
 }
 
 export default Home
+

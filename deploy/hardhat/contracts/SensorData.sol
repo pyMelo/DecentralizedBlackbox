@@ -36,35 +36,6 @@ contract SensorData {
 
         emit SensorBatchReceived(dateKey, timestamp, hexData);
     }
-
-    /**
-     * @notice Returns the number of batches recorded for a specific day.
-     * @param dateKey The "date key" (start of the day in timestamp).
-     * @return The number of batches for that day.
-     */
-    function getBatchCount(uint256 dateKey) external view returns (uint256) {
-        return batches[dateKey].length;
-    }
-
-    /**
-     * @notice Retrieves a batch of sensor data for a specific day.
-     * @param dateKey The "date key" (start of the day in timestamp).
-     * @param index Index of the batch in the array.
-     * @return The timestamp and HEX data.
-     */
-    function getSensorBatch(
-        uint256 dateKey,
-        uint256 index
-    ) external view returns (uint256, string memory) {
-        SensorBatch storage batch = batches[dateKey][index];
-        return (batch.timestamp, batch.hexData);
-    }
-
-    /**
-     * @notice Retrieves all batches for a specific day.
-     * @param dateKey The "date key" (start of the day in timestamp).
-     * @return An array of all recorded batches for that day.
-     */
     function getAllSensorBatchesForDay(
         uint256 dateKey
     ) external view returns (SensorBatch[] memory) {
