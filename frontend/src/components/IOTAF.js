@@ -37,7 +37,7 @@ import GPSChart from "./charts/GPSChart"
 import { GlassCard, StyledButton, StyledTextField, DataCard } from "./ui/StyledComponents"
 
 // Utilità di crittografia
-import { generateDailyKeySHA256, hexStringToBytes, decryptWithAES } from "../utils/crypto"
+import { generateDailyKeySHA256, hexStringToBytes, decryptWithAES,hexToUtf8 } from "../utils/crypto"
 
 const IOTAF = () => {
   const navigate = useNavigate()
@@ -239,8 +239,14 @@ const IOTAF = () => {
       if (!response.ok) {
         throw new Error(`Errore server: ${response.status}`)
       }
-      const blocks = await response.json()
+      let blocks = await response.json()
       console.log("Blocks from DB:", blocks)
+
+      blocks = blocks.filter((block) => {
+        const blockDate = new Date(block.timestamp).toISOString().split("T")[0]
+        return blockDate === selectedDate
+      })
+  
 
       if (blocks.length === 0) {
         setError("Nessun blocco trovato nel DB.")
@@ -266,10 +272,27 @@ const IOTAF = () => {
         }
 
         // Step 3: decode payload
-        const decoded = await decodePayload(tangleData.payload.data, "", true)
+        let messageData = tangleData.payload.data ? hexToUtf8(tangleData.payload.data) : "NO data";
+        let digest = null;
+        let timestamp = null;
+        try{
+
+          if (messageData.startsWith("0x")){
+            messageData = messageData.slice(2);
+          }
+          const parsedMessage = JSON.parse(messageData);
+          digest = parsedMessage.digest;
+          timestamp = parsedMessage.timestamp;
+
+        }
+        catch (parseError){
+          console.log("Errore DURANTE IL PARSING");
+        }
+
+        const decoded = await decodePayload(digest, "", true)
 
         // computedTimestamp from DB if available, or from Tangle if it has a .timestamp
-        const computedTimestamp = block.timestamp ? Number(block.timestamp) : 0
+        const computedTimestamp = timestamp;
 
         // store the result
         decodedBlocks.push({
@@ -309,8 +332,13 @@ const IOTAF = () => {
       if (!response.ok) {
         throw new Error(`Errore server: ${response.status}`)
       }
-      const blocks = await response.json()
+      let blocks = await response.json()
       console.log("Blocks from DB:", blocks)
+
+      blocks = blocks.filter((block) => {
+        const blockDate = new Date(block.timestamp).toISOString().split("T")[0]
+        return blockDate === selectedDate
+      })
 
       if (blocks.length === 0) {
         setError("Nessun blocco trovato nel DB.")
@@ -344,11 +372,28 @@ const IOTAF = () => {
           continue
         }
 
+        let messageData = tangleData.payload.data ? hexToUtf8(tangleData.payload.data) : "NO data";
+        let digest = null;
+        let timestamp = null;
+        try{
+
+          if (messageData.startsWith("0x")){
+            messageData = messageData.slice(2);
+          }
+          const parsedMessage = JSON.parse(messageData);
+          digest = parsedMessage.digest;
+          timestamp = parsedMessage.timestamp;
+
+        }
+        catch (parseError){
+          console.log("Errore DURANTE IL PARSING");
+        }
+
         // Step 3: decode payload
-        const decoded = await decodePayload(tangleData.payload.data, dailyKeyHex, false)
+        const decoded = await decodePayload(digest, dailyKeyHex, false)
 
         // computedTimestamp from DB if available, or from Tangle if it has a .timestamp
-        const computedTimestamp = block.timestamp ? Number(block.timestamp) : 0
+        const computedTimestamp = timestamp;
 
         // store the result
         decodedBlocks.push({

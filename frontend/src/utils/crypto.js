@@ -34,6 +34,17 @@ export const getEpochUTC = (dateStr) => {
     return bytes
   }
   
+  export const hexToUtf8 = (hex) => {
+    try {
+      return decodeURIComponent(
+        hex.replace(/\s+/g, '').replace(/[0-9a-f]{2}/g, '%$&')
+      );
+    } catch (e) {
+      console.error("❌ Errore durante la decodifica da Hex a UTF-8:", e);
+      return hex;
+    }
+  };
+  
   export const asciiToBytes = (str) => new TextEncoder().encode(str)
   
   export const concatUint8Arrays = (...arrays) => {
