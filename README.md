@@ -143,7 +143,7 @@ The web application offers an intuitive interface for monitoring IoT devices and
 
 ### 🏠 Home Dashboard - Platform Selector
 
-![Dashboard Example](./images/webapp6.png)
+![Dashboard Example](./images/webapp11.png)
 
 
 The user can navigate between SUI or IOTA depending where it's device's data are deployed to. 
@@ -196,7 +196,7 @@ As we can see after just inserting the master key the button about showing the e
 
 After clicking it (we can choose to see all the datas in the same dashboard) encrypted payloads are decrypted and being plotted.
 
-![Dashboard Example](./images/webapp5.png)
+![Dashboard Example](./images/webapp12.png)
 
 The data encrypted shown are Accelerometer and GPS Location.
 
