@@ -106,6 +106,7 @@ This step will compile the contracts, deploy them to the appropriate testnets, a
 
 ### 2. Run the Scripts
 
+In sendTx you can choose which network you want to deploy to
 - **Send transactions to the contracts:**
   ```bash
   node sendTx.js
@@ -117,6 +118,22 @@ This step will compile the contracts, deploy them to the appropriate testnets, a
   ```
 
 The scripts are designed to run in a secure environment and will output status logs to help you monitor operations. For example, `mqttSubscriber.js` provides detailed logs of incoming messages, helping you quickly identify any issues in the data pipeline.
+
+### 🆕 **IOTA FEELESS:**
+
+A dedicated database system has been developed to leverage IOTA’s feeless transactions.
+This system records the digest of each block and deployment operation.
+
+To activate it, simply run the database script:
+
+  ```bash
+  node index.js
+  ```
+
+As is being in develop or might be abandoned, you can choose the endpoint :
+
+![Dashboard Example](./images/webapp13.png)
+
 
 ---
 
