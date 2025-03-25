@@ -3,25 +3,21 @@
 
 #include <RadioLib.h>
 #include <LoRaWAN_ESP32.h>
-#include <Preferences.h>  // To store the DevNonce persistently
+#include <Preferences.h>
 
 // LoRa Module Configuration for Heltec ESP32
 SX1262 radio = new Module(8, 14, 12, 13);
-LoRaWANNode* node;
-
-// Persistent Storage
+LoRaWANNode* node = nullptr;
 Preferences preferences;
-uint16_t devNonce = 0;  // DevNonce stored in flash
+uint16_t devNonce = 0;
 
-void setupLoRaWAN() {
+void LoRaWAN_setup() {
     Serial.println("🔄 Initializing LoRaWAN...");
 
-    // Read the last DevNonce stored in flash (if it exists)
     preferences.begin("lorawan", false);
-    devNonce = preferences.getUShort("dev_nonce", esp_random() & 0xFFFF);  // If not found, generate a random one
+    devNonce = preferences.getUShort("dev_nonce", esp_random() & 0xFFFF);
     Serial.printf("📟 Using DevNonce: %u\n", devNonce);
 
-    // Initialize the LoRa module
     int16_t state = radio.begin();
     if (state != RADIOLIB_ERR_NONE) {
         Serial.println("❌ LoRa module failed to initialize.");
@@ -29,33 +25,32 @@ void setupLoRaWAN() {
     }
 
     node = persist.manage(&radio);
-    node->setDatarate(3);  // Set Data Rate
-    node->setADR(false);    // Disable Adaptive Data Rate
+    node->setDatarate(3);
+    node->setADR(false);
 
-    // Check if already activated
-    if (node->isActivated()) {
-        Serial.println("✅ Device already activated. Skipping join.");
+
+    if (persist.loadSession(node) && node->isActivated()) {
+        Serial.println("✅ Device already activated.");
     } else {
-        Serial.println("⚠️ Device is not activated! Ensure manual OTAA join is done.");
+        Serial.println("⚠️ Device not activated! Ensure manual OTAA join is done.");
     }
 
-    // Always generate a new DevNonce for the next session
     devNonce++;
     preferences.putUShort("dev_nonce", devNonce);
     preferences.end();
 
-    // Persist session to avoid rejoining
     persist.saveSession(node);
 }
 
-void sendToTTN(uint8_t* payload, size_t len) {
+
+bool LoRaWAN_send(uint8_t* payload, size_t len) {
     if (!node->isActivated()) {
         Serial.println("⚠️ Not activated! Cannot send. Load session or re-join required.");
-        return;
+        return false;
     }
 
     Serial.print("📡 Sending Payload to TTN (HEX): ");
-    for (int i = 0; i < len; i++) {
+    for (size_t i = 0; i < len; i++) {
         Serial.printf("%02X ", payload[i]);
     }
     Serial.println();
@@ -63,11 +58,12 @@ void sendToTTN(uint8_t* payload, size_t len) {
     int state = node->sendReceive(payload, len, 1);
     if (state == RADIOLIB_ERR_NONE) {
         Serial.println("✅ Message sent successfully.");
+        persist.saveSession(node);
+        return true;
     } else {
         Serial.printf("❌ Failed to send data (Error: %d)\n", state);
+        return false;
     }
-
-    persist.saveSession(node);  // 🔒 Salvi sempre lo stato aggiornato
 }
 
 #endif

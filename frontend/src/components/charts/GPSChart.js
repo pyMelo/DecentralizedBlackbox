@@ -1,319 +1,361 @@
-import React, { useState } from "react";
-import { 
-  MapContainer, 
-  TileLayer, 
-  Marker, 
-  Popup, 
-  Polyline, 
-  Circle 
-} from "react-leaflet";
+"use client";
+
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import {
+  Box,
+  Typography,
+  CircularProgress,
+  Alert,
+  IconButton,
+  Tooltip,
+  Paper,
+} from "@mui/material";
+import InfoIcon from "@mui/icons-material/Info";
+import MyLocationIcon from "@mui/icons-material/MyLocation";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+
+// Import Leaflet styles
 import "leaflet/dist/leaflet.css";
-import L from "leaflet";
 
-// Fix per le icone di Leaflet
-// Nota: Dovrai avere questi file nella cartella public
-const DefaultIcon = L.icon({
-  iconUrl: "/marker-icon.png",
-  shadowUrl: "/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-});
-
-L.Marker.prototype.options.icon = DefaultIcon;
-
-const GPSMap = ({ data, darkMode = false }) => {
+const GPSChart = ({ data, darkMode = false }) => {
+  // States to control info visibility, map visibility and loading/error states
   const [showInfo, setShowInfo] = useState(false);
-  
-  // Calcola il centro della mappa (media di lat e long)
-  const centerLat = data.length > 0 
-    ? data.reduce((sum, item) => sum + item.latitude, 0) / data.length 
-    : 45.4642; // Default a una posizione in Italia se non ci sono dati
-  
-  const centerLong = data.length > 0 
-    ? data.reduce((sum, item) => sum + item.longitude, 0) / data.length 
-    : 9.1900; // Default a una posizione in Italia se non ci sono dati
-  
-  // Calcola il raggio per determinare lo zoom della mappa
-  const calcRadius = () => {
-    if (data.length <= 1) return 500; // metri
-    
-    let maxDist = 0;
-    data.forEach(item => {
-      const dist = Math.sqrt(
-        Math.pow(item.latitude - centerLat, 2) + 
-        Math.pow(item.longitude - centerLong, 2)
-      ) * 111000; // Conversione approssimativa da gradi a metri (1 grado = ~111km)
-      
-      if (dist > maxDist) maxDist = dist;
-    });
-    
-    return Math.max(maxDist * 1.2, 500); // Assicura un minimo di raggio
-  };
-  
-  const radius = calcRadius();
-  
-  // Determina lo zoom in base al raggio
-  const getZoomLevel = (radiusInMeters) => {
-    const zoom = Math.log2(40000000 / radiusInMeters);
-    return Math.min(Math.max(Math.round(zoom), 1), 18); // Limita lo zoom tra 1 e 18
-  };
-  
-  const zoom = getZoomLevel(radius);
+  const [showMap, setShowMap] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [mapError, setMapError] = useState(false);
 
-  // Crea le coordinate per la polyline dai punti GPS
-  const polylinePositions = data.map(point => [point.latitude, point.longitude]);
+  // Refs for map container and map instance
+  const mapContainerRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const initializedRef = useRef(false);
+  const resizeTimeoutsRef = useRef([]);
 
-  // Stili per il componente
-  const styles = {
-    card: {
-      borderRadius: '8px',
-      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-      backgroundColor: darkMode ? '#1e1e2f' : 'white',
-      color: darkMode ? 'white' : 'black',
-      overflow: 'hidden'
-    },
-    cardHeader: {
-      padding: '16px',
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      borderBottom: `1px solid ${darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`
-    },
-    title: {
-      margin: 0,
-      fontSize: '18px',
-      fontWeight: 600,
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px'
-    },
-    iconButton: {
-      background: 'none',
-      border: 'none',
-      cursor: 'pointer',
-      borderRadius: '4px',
-      padding: '4px',
-      color: darkMode ? 'white' : 'black',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center'
-    },
-    cardContent: {
-      padding: '16px'
-    },
-    infoBox: {
-      marginBottom: '16px',
-      padding: '12px',
-      borderRadius: '8px',
-      backgroundColor: darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
-    },
-    infoTitle: {
-      fontSize: '14px',
-      fontWeight: 600,
-      marginBottom: '8px'
-    },
-    infoGrid: {
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: '16px'
-    },
-    infoLabel: {
-      fontSize: '12px',
-      color: darkMode ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)',
-      marginBottom: '4px'
-    },
-    infoValue: {
-      fontSize: '14px',
-      display: 'flex',
-      gap: '8px'
-    },
-    bold: {
-      fontWeight: 600
-    },
-    mapContainer: {
-      height: '300px',
-      width: '100%',
-      borderRadius: '8px',
-      overflow: 'hidden'
+  // Filter valid GPS data
+  const validData = data.filter(
+    (item) =>
+      item.latitude &&
+      item.longitude &&
+      item.latitude !== 0 &&
+      item.longitude !== 0
+  );
+
+  // Calculate center of map (if no valid data, remains 0)
+  const centerLat =
+    validData.length > 0
+      ? validData.reduce((sum, item) => sum + item.latitude, 0) / validData.length
+      : 0;
+  const centerLong =
+    validData.length > 0
+      ? validData.reduce((sum, item) => sum + item.longitude, 0) / validData.length
+      : 0;
+
+  // Resize the map if the container is visible
+  const resizeMap = useCallback(() => {
+    try {
+      if (mapInstanceRef.current && mapContainerRef.current) {
+        if (mapContainerRef.current.offsetHeight === 0) return;
+        mapInstanceRef.current.invalidateSize(true);
+      }
+    } catch (error) {
+      console.error("Error resizing the map:", error);
+      setMapError(true);
     }
-  };
+  }, []);
 
-  // Icone SVG inline
-  const NavigationIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" 
-      stroke={darkMode ? 'white' : 'black'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>
-    </svg>
-  );
+  // Cleanup function to remove timeouts and the map instance (called on unmount)
+  const cleanupMap = useCallback(() => {
+    resizeTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
+    resizeTimeoutsRef.current = [];
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.off();
+      mapInstanceRef.current.remove();
+      mapInstanceRef.current = null;
+    }
+    initializedRef.current = false;
+  }, []);
 
-  const InfoIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" 
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10"></circle>
-      <line x1="12" y1="16" x2="12" y2="12"></line>
-      <line x1="12" y1="8" x2="12.01" y2="8"></line>
-    </svg>
-  );
+  // Initialize the map only once (on mount)
+  useEffect(() => {
+    // If map is already initialized, do nothing
+    if (initializedRef.current) return;
+    if (!validData.length) {
+      setLoading(false);
+      return;
+    }
+    initializedRef.current = true;
 
-  const MapPinIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" 
-      stroke="#6441A5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-      <circle cx="12" cy="10" r="3"></circle>
-    </svg>
-  );
+    const initializeMap = async () => {
+      try {
+        setLoading(true);
+        setMapError(false);
+        const L = await import("leaflet");
+
+        // Fix missing icon issue
+        delete L.Icon.Default.prototype._getIconUrl;
+        L.Icon.Default.mergeOptions({
+          iconRetinaUrl:
+            "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+          iconUrl:
+            "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+          shadowUrl:
+            "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+        });
+
+        const mapContainer = mapContainerRef.current;
+        if (!mapContainer) throw new Error("Map container not found");
+
+        // Set container dimensions (we control visibility via CSS)
+        mapContainer.style.width = "100%";
+        mapContainer.style.height = showMap ? "250px" : "0px";
+
+        // Create the map and store in the ref
+        mapInstanceRef.current = L.map(mapContainer, {
+          center: [centerLat, centerLong],
+          zoom: 15,
+          attributionControl: true,
+          zoomControl: true,
+        });
+        const currentMap = mapInstanceRef.current;
+
+        // Add tile layer
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution:
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+          maxZoom: 19,
+        }).addTo(currentMap);
+
+        // Add markers and polyline once using validData
+        if (validData.length > 0) {
+          const markers = [];
+          const points = [];
+          validData.forEach((point) => {
+            const marker = L.marker([point.latitude, point.longitude]).addTo(currentMap);
+            markers.push(marker);
+            points.push([point.latitude, point.longitude]);
+          });
+          if (points.length > 1) {
+            L.polyline(points, {
+              color: "#6441A5",
+              weight: 3,
+              opacity: 0.7,
+              dashArray: "5, 5",
+            }).addTo(currentMap);
+          }
+          // Center the map based on marker bounds
+          const bounds = L.latLngBounds(points);
+          currentMap.fitBounds(bounds, { padding: [30, 30] });
+        }
+        // (Note: we are not refreshing markers if validData changes later.)
+
+        // Add a ResizeObserver to trigger resizeMap
+        const resizeObserver = new ResizeObserver(() => {
+          const timeout = setTimeout(resizeMap, 100);
+          resizeTimeoutsRef.current.push(timeout);
+        });
+        resizeObserver.observe(mapContainer);
+
+        setLoading(false);
+      } catch (error) {
+        console.error("Error initializing map:", error);
+        setMapError(true);
+        setLoading(false);
+      }
+    };
+
+    initializeMap();
+    return () => {
+      cleanupMap();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // empty dependency array: initialize only once
+
+  // Effect to resize the map when showMap changes (but do nothing if map is already active)
+  useEffect(() => {
+    if (showMap && mapInstanceRef.current) {
+      setTimeout(() => {
+        mapInstanceRef.current.invalidateSize();
+      }, 300);
+    }
+  }, [showMap]);
+
+  // Additional effect for darkMode changes (if needed)
+  useEffect(() => {
+    const timeout1 = setTimeout(resizeMap, 100);
+    const timeout2 = setTimeout(resizeMap, 300);
+    const timeout3 = setTimeout(resizeMap, 500);
+    resizeTimeoutsRef.current.push(timeout1, timeout2, timeout3);
+    return () => {
+      resizeTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
+      resizeTimeoutsRef.current = [];
+    };
+  }, [darkMode, resizeMap]);
 
   return (
-    <div style={styles.card}>
-      <div style={styles.cardHeader}>
-        <h3 style={styles.title}>
-          <NavigationIcon />
-          Mappa GPS
-        </h3>
-        <button 
-          style={styles.iconButton} 
-          onClick={() => setShowInfo(!showInfo)}
-          title="Mostra statistiche"
+    <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      {/* Header */}
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+        <Typography
+          variant="h6"
+          sx={{ fontWeight: 600, color: darkMode ? "white" : "#6441A5", display: "flex", alignItems: "center", gap: 1 }}
         >
-          <InfoIcon />
-        </button>
-      </div>
-      <div style={styles.cardContent}>
-        {showInfo && (
-          <div style={styles.infoBox}>
-            <h4 style={styles.infoTitle}>Informazioni GPS</h4>
-            
-            <div style={styles.infoGrid}>
-              <div>
-                <p style={styles.infoLabel}>Posizione Media</p>
-                <div style={styles.infoValue}>
-                  <p>
-                    <span style={styles.bold}>Lat:</span> {centerLat.toFixed(6)}
-                  </p>
-                  <p>
-                    <span style={styles.bold}>Long:</span> {centerLong.toFixed(6)}
-                  </p>
-                </div>
-              </div>
-              
-              <div>
-                <p style={styles.infoLabel}>Campioni</p>
-                <p style={styles.infoValue}>
-                  <span style={styles.bold}>{data.length}</span> punti rilevati
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* Mappa Leaflet */}
-        <div style={styles.mapContainer}>
-          <MapContainer 
-            center={[centerLat, centerLong]} 
-            zoom={zoom} 
-            style={{ height: "100%", width: "100%" }}
-          >
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            
-            {/* Punto centrale */}
-            <Marker position={[centerLat, centerLong]}>
-              <Popup>
-                <div style={{ textAlign: "center" }}>
-                  <p style={{ fontWeight: 600, fontSize: "14px" }}>
-                    Posizione Media
-                  </p>
-                  <p style={{ fontSize: "12px" }}>
-                    Lat: {centerLat.toFixed(6)}
-                  </p>
-                  <p style={{ fontSize: "12px" }}>
-                    Long: {centerLong.toFixed(6)}
-                  </p>
-                </div>
-              </Popup>
-            </Marker>
-            
-            {/* Cerchio di riferimento */}
-            <Circle 
-              center={[centerLat, centerLong]}
-              radius={radius}
-              pathOptions={{ 
-                color: "#6441A5", 
-                fillColor: "#6441A5", 
-                fillOpacity: 0.1 
+          <MyLocationIcon sx={{ color: "#6441A5" }} />
+          Mappa GPS
+        </Typography>
+        <Box>
+          <Tooltip title="Mostra statistiche">
+            <IconButton size="small" onClick={() => setShowInfo((prev) => !prev)} sx={{ color: darkMode ? "white" : "black" }}>
+              <InfoIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title={showMap ? "Nascondi mappa" : "Mostra mappa"}>
+            <IconButton size="small" onClick={() => setShowMap((prev) => !prev)} sx={{ color: darkMode ? "white" : "black" }}>
+              {showMap ? <ErrorOutlineIcon /> : <MyLocationIcon />}
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </Box>
+
+      {/* Info Section */}
+      {showInfo && (
+        <Paper
+          elevation={0}
+          sx={{
+            mb: 2,
+            p: 1.5,
+            borderRadius: "8px",
+            background: darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)",
+          }}
+        >
+          <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: darkMode ? "white" : "black" }}>
+            Informazioni GPS
+          </Typography>
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, justifyContent: "space-between" }}>
+            <Box>
+              <Typography variant="caption" sx={{ color: darkMode ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)" }}>
+                Posizione Media
+              </Typography>
+              <Box sx={{ display: "flex", gap: 2 }}>
+                <Typography variant="body2" sx={{ color: darkMode ? "white" : "black" }}>
+                  <span style={{ fontWeight: 600 }}>Lat:</span> {centerLat.toFixed(6)}
+                </Typography>
+                <Typography variant="body2" sx={{ color: darkMode ? "white" : "black" }}>
+                  <span style={{ fontWeight: 600 }}>Long:</span> {centerLong.toFixed(6)}
+                </Typography>
+              </Box>
+            </Box>
+            <Box>
+              <Typography variant="caption" sx={{ color: darkMode ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)" }}>
+                Campioni
+              </Typography>
+              <Typography variant="body2" sx={{ color: darkMode ? "white" : "black" }}>
+                <span style={{ fontWeight: 600 }}>{validData.length}</span> punti rilevati
+              </Typography>
+            </Box>
+          </Box>
+        </Paper>
+      )}
+
+      {/* Map Container */}
+      {validData.length === 0 ? (
+        <Box
+          sx={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            color: darkMode ? "white" : "black",
+            gap: 2,
+            p: 3,
+            borderRadius: "8px",
+            background: darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)",
+          }}
+        >
+          <MyLocationIcon sx={{ fontSize: 48, color: "#6441A5", opacity: 0.5 }} />
+          <Typography variant="body1" sx={{ textAlign: "center" }}>
+            Nessun dato GPS valido disponibile
+          </Typography>
+        </Box>
+      ) : (
+        <Box
+          sx={{
+            flex: 1,
+            borderRadius: "8px",
+            overflow: "hidden",
+            border: "1px solid",
+            borderColor: darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
+            minHeight: "250px",
+            width: "100%",
+            position: "relative",
+          }}
+        >
+          <Box
+            ref={mapContainerRef}
+            sx={{
+              width: "100%",
+              height: showMap ? "250px" : "0px",
+              backgroundColor: darkMode ? "#1e1e2f" : "#f5f5f5",
+              transition: "height 0.3s ease",
+            }}
+          />
+          {loading && (
+            <Box
+              sx={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: darkMode
+                  ? "rgba(30,30,47,0.7)"
+                  : "rgba(245,245,245,0.7)",
               }}
-            />
-            
-            {/* Polyline che collega tutti i punti */}
-            {data.length > 1 && (
-              <Polyline 
-                positions={polylinePositions}
-                pathOptions={{ 
-                  color: "#6441A5", 
-                  weight: 3,
-                  opacity: 0.7,
-                  dashArray: "5, 5"
-                }}
-              />
-            )}
-            
-            {/* Tutti i punti GPS */}
-            {data.map((point, index) => (
-              <Marker 
-                key={index} 
-                position={[point.latitude, point.longitude]}
-                icon={L.divIcon({
-                  html: `<div style="
-                    background-color: #6441A5;
-                    width: 12px;
-                    height: 12px;
-                    border-radius: 50%;
-                    border: 2px solid white;
-                    box-shadow: 0 0 4px rgba(0,0,0,0.3);
-                  "></div>`,
-                  className: "",
-                  iconSize: [16, 16],
-                  iconAnchor: [8, 8],
-                })}
+            >
+              <CircularProgress size={40} sx={{ color: "#6441A5" }} />
+              <Typography variant="body2" sx={{ mt: 2, color: darkMode ? "white" : "black", fontWeight: 500 }}>
+                Caricamento mappa...
+              </Typography>
+            </Box>
+          )}
+          {mapError && !loading && (
+            <Box
+              sx={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: darkMode ? "#1e1e2f" : "#f5f5f5",
+                p: 3,
+              }}
+            >
+              <ErrorOutlineIcon sx={{ fontSize: 48, color: "#ff5252", mb: 2 }} />
+              <Typography
+                variant="body1"
+                sx={{ color: darkMode ? "white" : "black", fontWeight: 500, textAlign: "center", mb: 1 }}
               >
-                <Popup>
-                  <div>
-                    <p style={{ fontWeight: 600, fontSize: "14px", marginBottom: "4px" }}>
-                      Posizione
-                    </p>
-                    <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}>
-                      <MapPinIcon />
-                      <p style={{ fontSize: "12px" }}>
-                        <span style={{ fontWeight: 600 }}>Lat:</span> {point.latitude}
-                      </p>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                      <MapPinIcon />
-                      <p style={{ fontSize: "12px" }}>
-                        <span style={{ fontWeight: 600 }}>Long:</span> {point.longitude}
-                      </p>
-                    </div>
-                    {point.time && (
-                      <p style={{ 
-                        fontSize: "10px", 
-                        marginTop: "8px", 
-                        opacity: 0.7 
-                      }}>
-                        {point.time}
-                      </p>
-                    )}
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
-          </MapContainer>
-        </div>
-      </div>
-    </div>
+                Impossibile caricare la mappa
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{ color: darkMode ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)", textAlign: "center", maxWidth: "80%" }}
+              >
+                Verifica la connessione internet o prova a ricaricare la pagina
+              </Typography>
+            </Box>
+          )}
+        </Box>
+      )}
+    </Box>
   );
 };
 
-export default GPSMap;
+export default GPSChart;

@@ -73,11 +73,11 @@ public:
 
         // REAL FETCHING ---------
 
-        //int32_t lat_scaled = (int32_t)(lat * 1e7);
-        //int32_t lon_scaled = (int32_t)(lon * 1e7);
+        int32_t lat_scaled = (int32_t)(lat * 1e7);
+        int32_t lon_scaled = (int32_t)(lon * 1e7);
 
-        int32_t lat_scaled = 385237110;  // 37.523711
-        int32_t lon_scaled = 160713680;  // 15.071368
+        //int32_t lat_scaled = 385237110;  // 37.523711
+        //int32_t lon_scaled = 160713680;  // 15.071368
         Serial.printf("\n🌡 Temperature: %d°C\n", temperature);
         Serial.printf("💧 Humidity: %d%%\n", humidity);
         Serial.printf("🌀 Gyro X: %.2f, Y: %.2f, Z: %.2f\n", g.gyro.x, g.gyro.y, g.gyro.z);

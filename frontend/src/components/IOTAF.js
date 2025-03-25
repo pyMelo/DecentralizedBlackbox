@@ -273,15 +273,20 @@ const IOTAF = () => {
 
         // Step 3: decode payload
         let messageData = tangleData.payload.data ? hexToUtf8(tangleData.payload.data) : "NO data";
-        let digest = null;
+        let payload = null;
         let timestamp = null;
         try{
+
+          if (!messageData || typeof messageData !== 'string') {
+            console.log(`⚠️ Nessun dato valido nel block ${blockId}, lo salto.`);
+            continue; // Salta questo blocco e vai avanti
+          }
 
           if (messageData.startsWith("0x")){
             messageData = messageData.slice(2);
           }
           const parsedMessage = JSON.parse(messageData);
-          digest = parsedMessage.digest;
+          payload = parsedMessage.payload;
           timestamp = parsedMessage.timestamp;
 
         }
@@ -289,7 +294,7 @@ const IOTAF = () => {
           console.log("Errore DURANTE IL PARSING");
         }
 
-        const decoded = await decodePayload(digest, "", true)
+        const decoded = await decodePayload(payload, "", true)
 
         // computedTimestamp from DB if available, or from Tangle if it has a .timestamp
         const computedTimestamp = timestamp;
@@ -373,16 +378,18 @@ const IOTAF = () => {
         }
 
         let messageData = tangleData.payload.data ? hexToUtf8(tangleData.payload.data) : "NO data";
-        let digest = null;
+        let payload = null;
         let timestamp = null;
         try{
-
+        
           if (messageData.startsWith("0x")){
             messageData = messageData.slice(2);
           }
           const parsedMessage = JSON.parse(messageData);
-          digest = parsedMessage.digest;
+          payload = parsedMessage.payload;
           timestamp = parsedMessage.timestamp;
+          const tag = parsedMessage.tag ?? "N/A";
+          console.log("Tag:", tag);
 
         }
         catch (parseError){
@@ -390,7 +397,7 @@ const IOTAF = () => {
         }
 
         // Step 3: decode payload
-        const decoded = await decodePayload(digest, dailyKeyHex, false)
+        const decoded = await decodePayload(payload, dailyKeyHex, false)
 
         // computedTimestamp from DB if available, or from Tangle if it has a .timestamp
         const computedTimestamp = timestamp;

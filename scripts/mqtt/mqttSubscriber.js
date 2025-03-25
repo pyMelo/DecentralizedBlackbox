@@ -67,10 +67,10 @@ function processDownlink(deviceId, payload) {
 }
 
 // Forward the data to the blockchain sender service
-function sendToBlockchain(decodedHex, timestamp) {
+function sendToBlockchain(decodedHex, timestamp,deviceId) {
   // Assuming the blockchain sender service is running on localhost:3001
   const url = 'http://localhost:3001/sendTx';
-  const data = { payload: decodedHex, timestamp: timestamp };
+  const data = { payload: decodedHex, timestamp: timestamp, vehicleid : deviceId };
   axios.post(url, data)
     .then(response => {
       console.log('Blockchain TX response:', response.data);
@@ -84,7 +84,7 @@ client.on('message', (topic, message) => {
   try {
     const payload = JSON.parse(message.toString());
     const topicParts = topic.split('/');
-    const deviceId = topicParts[3] || 'unknown-device';
+    const deviceId = topicParts[3] || 'v-123';
     if (topic.includes('/up')) {
       processUplink(deviceId, payload);
     } else if (topic.includes('/down/queued')) {

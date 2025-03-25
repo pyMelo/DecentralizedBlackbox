@@ -1,9 +1,11 @@
-// gps_manager.h Gestione RAW NMEA e fix GPS con blocco dopo fix
+// gps_monitor.h - Gestione RAW NMEA e fix GPS con blocco dopo fix
 #ifndef GPS_MONITOR_H
 #define GPS_MONITOR_H
 
 #include <TinyGPS++.h>
 #include <HardwareSerial.h>
+#include <TimeLib.h>
+
 
 class GPSMonitor {
 public:
@@ -57,6 +59,21 @@ public:
     TinyGPSPlus& getGPS() {
         return gps;
     }
+
+    time_t getGPSEpoch() {
+      if (getGPS().time.isValid() && getGPS().date.isValid()) {
+        tmElements_t tm;
+        tm.Year = getGPS().date.year() - 1970;
+        tm.Month = getGPS().date.month();
+        tm.Day = getGPS().date.day();
+        tm.Hour = getGPS().time.hour();
+        tm.Minute = getGPS().time.minute();
+        tm.Second = getGPS().time.second();
+        return makeTime(tm);
+      }
+    return 0;
+  }
+
 
 private:
     TinyGPSPlus gps;

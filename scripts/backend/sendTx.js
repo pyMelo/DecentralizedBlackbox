@@ -8,6 +8,24 @@ import { Transaction } from '@mysten/sui/transactions';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { spawn } from 'child_process';
 import cors from 'cors';
+import pkg from 'pg';
+
+const { Pool } = pkg;
+
+// Crea la connessione al database (assicurati che DATABASE_URL sia impostato nel tuo .env o sostituisci i parametri)
+const pool = new Pool({
+  connectionString: "postgres://myuser:mypassword@localhost:5432/iota_blocks",
+});
+
+// Funzione per inserire il digest nel database
+const insertDigestInDb = async (digest, timestamp) => {
+  const query = "INSERT INTO blocks (digest, timestamp) VALUES ($1, to_timestamp($2))";
+  const result = await pool.query(query, [digest, timestamp]);
+
+  console.log('✅ Digest salvato nel database:', result.rows[0]);
+
+  await pool.query(query, [digest, timestamp]);
+};
 
 dotenv.config({ path: "../.env" });
 
@@ -77,9 +95,9 @@ const sendToSui = async (timestamp, processedDataHex) => {
   }
 };
 
-const sendToIOTADataOnly = async (vehicleId, processedDataHex) => {
+const sendToIOTADataOnly = async (vehicleId, processedDataHex, timestamp) => {
   return new Promise((resolve, reject) => {
-    const pythonProcess = spawn('python3', ['python/send_iota.py', vehicleId, processedDataHex]);
+    const pythonProcess = spawn('python3', ['python/send_iota.py', vehicleId, processedDataHex,timestamp]);
     let result = '';
     pythonProcess.stdout.on('data', (data) => {
       result += data.toString();
@@ -101,7 +119,7 @@ const sendToIOTADataOnly = async (vehicleId, processedDataHex) => {
 // ------------------ Express Endpoint ------------------
 app.post('/sendTx', async (req, res) => {
   try {
-    const { payload, timestamp} = req.body; // Expect network selection from request
+    const { payload, timestamp,vehicleId} = req.body; // Expect network selection from request
     const network = 4;
 
     if (!payload || !timestamp ) {
@@ -127,8 +145,12 @@ app.post('/sendTx', async (req, res) => {
         break;
 
       case 3: // IOTA Data-Only
-        txResult.iotaDataBlock = await sendToIOTADataOnly(vehicleId, payload);
+        txResult.iotaDataBlock = await sendToIOTADataOnly(vehicleId, payload,unixTimestamp);
         txResult.links = {
+          iotaData: `https://explorer.iota.org/iota-testnet/block/${txResult.iotaDataBlock}`
+        };
+        await insertDigestInDb(txResult.iotaDataBlock, unixTimestamp);
+        txResult.links  = {
           iotaData: `https://explorer.iota.org/iota-testnet/block/${txResult.iotaDataBlock}`
         };
         break;
@@ -136,12 +158,17 @@ app.post('/sendTx', async (req, res) => {
       case 4: // Both SUI and IOTA EVM
         // Send to SUI
         txResult.suiDigest = await sendToSui(unixTimestamp, payload);
-        // Send to IOTA EVM
+        txResult.iotaDataBlock = await sendToIOTADataOnly(vehicleId, payload,unixTimestamp);
         txResult.iotaEvmTxHash = await sendToIOTAEVM(unixTimestamp, payload);
+        await insertDigestInDb(txResult.iotaDataBlock, unixTimestamp);
+
         txResult.links = {
           sui: `https://suiscan.xyz/testnet/tx/${txResult.suiDigest}?network=testnet`,
-          iotaEvm: `https://explorer.evm.testnet.iotaledger.net/tx/${txResult.iotaEvmTxHash}`
+          iotaEvm: `https://explorer.evm.testnet.iotaledger.net/tx/${txResult.iotaEvmTxHash}`,
+          iotaData: `https://explorer.iota.org/iota-testnet/block/${txResult.iotaDataBlock}`
+
         };
+
         break;
 
       default:
