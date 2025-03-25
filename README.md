@@ -14,7 +14,7 @@
 
 - **`scripts/`**  
   - `sendTx.js`: Sends transactions to the deployed contracts. 
-  - `mqttSubscriber.js`: Connects to the MQTT broker to receive real-time data. 
+  - `mqttSubscriber.js`: Connects to the MQTT subscriber to receive real-time data. 
 - **`frontend/`**  
 Provides a user interface for monitoring and interacting with the system. 
 
@@ -143,7 +143,7 @@ As is being in develop or might be abandoned, you can choose the endpoint :
    TThe ESP32 gathers sensor data.
 
 2. **Transmission using LoRaWAN via TTN:**  
-   TTN receives the data and forwards it to the MQTT broker. TTN integration ensures that devices can operate in low-power environments while maintaining reliable data transmission.
+   TTN receives the data and forwards it to the MQTT subscriber. TTN integration ensures that devices can operate in low-power environments while maintaining reliable data transmission.
 
 3. **Blockchain Notarization:**  
    The data is recorded on IOTA EVM and SUI using the deployment and transaction scripts. This step guarantees that the collected data is immutable and verifiable by any third party.
