@@ -196,7 +196,7 @@ As we can see after just inserting the master key the button about showing the e
 
 After clicking it (we can choose to see all the datas in the same dashboard) encrypted payloads are decrypted and being plotted.
 
-![Dashboard Example](./images/webapp12.png)
+![Dashboard Example](./images/web12.png)
 
 The data encrypted shown are Accelerometer and GPS Location.
 
