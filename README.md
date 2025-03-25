@@ -132,7 +132,7 @@ To activate it, simply run the database script:
 
 As is being in develop or might be abandoned, you can choose the endpoint :
 
-![Dashboard Example](./images/webapp13.png)
+![Dashboard Example](./images/web13.png)
 
 
 ---
