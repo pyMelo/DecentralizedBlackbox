@@ -68,7 +68,7 @@ void sendEncryptedPayload() {
 
 
   String hexPayload = payloadManager->createPayload();
-  uint8_t payload[35];
+  uint8_t payload[20];
   size_t payload_len = 0;
   hexStringToByteArray(hexPayload, payload, payload_len);
 
