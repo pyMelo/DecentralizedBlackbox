@@ -53,10 +53,7 @@ function processUplink(deviceId, payload) {
     const base64Payload = payload.uplink_message.frm_payload;
     const decodedBuffer = Buffer.from(base64Payload, 'base64');
     const decodedHex = decodedBuffer.toString('hex');
-    console.log(`Uplink received at ${timestamp}: payload (hex) = ${decodedHex}`);
-    
-    // Forward data to the blockchain sender service via HTTP POST
-    sendToBlockchain(decodedHex, timestamp);
+    sendToBlockchain(decodedHex, timestamp, deviceId);
   }
 }
 
@@ -64,6 +61,7 @@ function processUplink(deviceId, payload) {
 function processDownlink(deviceId, payload) {
   const timestamp = payload.received_at || new Date().toISOString();
   console.log(`Downlink received at ${timestamp}:`, payload);
+  
 }
 
 // Forward the data to the blockchain sender service

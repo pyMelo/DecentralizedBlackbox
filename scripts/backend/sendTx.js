@@ -121,59 +121,88 @@ app.post('/sendTx', async (req, res) => {
   try {
     const { payload, timestamp,vehicleId} = req.body; // Expect network selection from request
     const network = 4;
-
+    
     if (!payload || !timestamp ) {
       return res.status(400).json({ error: "Missing payload, timestamp, or network selection" });
     }
     const unixTimestamp = Math.floor(new Date(timestamp).getTime() / 1000);
     
-    let txResult = {};
-    
-    switch (network) {
-      case 1: // IOTA EVM 
-        txResult.iotaEvmTxHash = await sendToIOTAEVM(unixTimestamp, payload);
-        txResult.links = {
-          iotaEvm: `https://explorer.evm.testnet.iotaledger.net/tx/${txResult.iotaEvmTxHash}`
-        };
-        break;
-      
-      case 2: // SUI
-        txResult.suiDigest = await sendToSui(unixTimestamp, payload);
-        txResult.links = {
-          sui: `https://suiscan.xyz/testnet/tx/${txResult.suiDigest}?network=testnet`
-        };
-        break;
+    const payloadBuffer = Buffer.from(payload, 'hex');
 
-      case 3: // IOTA Data-Only
-        txResult.iotaDataBlock = await sendToIOTADataOnly(vehicleId, payload,unixTimestamp);
-        txResult.links = {
-          iotaData: `https://explorer.iota.org/iota-testnet/block/${txResult.iotaDataBlock}`
-        };
-        await insertDigestInDb(txResult.iotaDataBlock, unixTimestamp);
-        txResult.links  = {
-          iotaData: `https://explorer.iota.org/iota-testnet/block/${txResult.iotaDataBlock}`
-        };
-        break;
+    console.log(`\n📥 Received Payload HEX: ${payload}`);
+    console.log(`🔎 Raw Payload Buffer: ${payloadBuffer.toString('hex')}`);
 
-      case 4: // Both SUI and IOTA EVM
-        // Send to SUI
-        txResult.suiDigest = await sendToSui(unixTimestamp, payload);
-        txResult.iotaDataBlock = await sendToIOTADataOnly(vehicleId, payload,unixTimestamp);
-        txResult.iotaEvmTxHash = await sendToIOTAEVM(unixTimestamp, payload);
-        await insertDigestInDb(txResult.iotaDataBlock, unixTimestamp);
+    const BLOCK_SIZE = 20;
+    const blocks = [];
 
-        txResult.links = {
-          sui: `https://suiscan.xyz/testnet/tx/${txResult.suiDigest}?network=testnet`,
-          iotaEvm: `https://explorer.evm.testnet.iotaledger.net/tx/${txResult.iotaEvmTxHash}`,
-          iotaData: `https://explorer.iota.org/iota-testnet/block/${txResult.iotaDataBlock}`
+    // ✅ Split il payload ogni 20 bytes
+    for (let i = 0; i < payloadBuffer.length; i += BLOCK_SIZE) {
+      const block = payloadBuffer.subarray(i, i + BLOCK_SIZE);
+      if (block.length === BLOCK_SIZE) {
+        // 🔄 Ricostruisci il full IV per ogni blocco
+        const iv2Bytes = block.subarray(0, 2);
+        const fullIV = Buffer.concat([iv2Bytes, Buffer.alloc(14, 0)]);
+        const encryptedPart = block.subarray(2);
 
-        };
+        const finalPayload = Buffer.concat([fullIV, encryptedPart]);
+        blocks.push(finalPayload);
 
-        break;
-
-      default:
-        return res.status(400).json({ error: "Invalid network selection. Choose 1, 2, 3, or 4." });
+        console.log(`🟢 Block ${i / BLOCK_SIZE + 1}:`);
+        console.log(`    IV 2 bytes: ${iv2Bytes.toString('hex')}`);
+        console.log(`    Full IV: ${fullIV.toString('hex')}`);
+        console.log(`    Encrypted: ${encryptedPart.toString('hex')}`);
+        console.log(`    Final Payload to Send: ${finalPayload.toString('hex')}`);
+      } else {
+        console.warn(`⚠️ Block size mismatch: expected 20 bytes, got ${block.length} bytes. Skipping.`);
+      }
     }
+
+    let txResult = {};
+
+    for (const [i, finalPayload] of blocks.entries()) {
+      console.log(`🚀 Sending block ${i + 1} to blockchain...`);
+    
+      switch (network) {
+        case 1: // IOTA EVM
+          txResult.iotaEvmTxHash = await sendToIOTAEVM(unixTimestamp, finalPayload.toString('hex'));
+          txResult.links = {
+            iotaEvm: `https://explorer.evm.testnet.iotaledger.net/tx/${txResult.iotaEvmTxHash}`
+          };
+          break;
+    
+        case 2: // SUI
+          txResult.suiDigest = await sendToSui(unixTimestamp, finalPayload.toString('hex'));
+          txResult.links = {
+            sui: `https://suiscan.xyz/testnet/tx/${txResult.suiDigest}?network=testnet`
+          };
+          break;
+    
+        case 3: // IOTA Data-Only
+          txResult.iotaDataBlock = await sendToIOTADataOnly(vehicleId, finalPayload.toString('hex'), unixTimestamp);
+          txResult.links = {
+            iotaData: `https://explorer.iota.org/iota-testnet/block/${txResult.iotaDataBlock}`
+          };
+          await insertDigestInDb(txResult.iotaDataBlock, unixTimestamp);
+          break;
+    
+        case 4: // Both SUI and IOTA EVM
+          txResult.suiDigest = await sendToSui(unixTimestamp, finalPayload.toString('hex'));
+          txResult.iotaDataBlock = await sendToIOTADataOnly(vehicleId, finalPayload.toString('hex'), unixTimestamp);
+          txResult.iotaEvmTxHash = await sendToIOTAEVM(unixTimestamp, finalPayload.toString('hex'));
+          await insertDigestInDb(txResult.iotaDataBlock, unixTimestamp);
+    
+          txResult.links = {
+            sui: `https://suiscan.xyz/testnet/tx/${txResult.suiDigest}?network=testnet`,
+            iotaEvm: `https://explorer.evm.testnet.iotaledger.net/tx/${txResult.iotaEvmTxHash}`,
+            iotaData: `https://explorer.iota.org/iota-testnet/block/${txResult.iotaDataBlock}`
+          };
+          break;
+    
+        default:
+          return res.status(400).json({ error: "Invalid network selection. Choose 1, 2, 3, or 4." });
+      }
+    }
+    
 
     res.json({
       message: `Sensor data sent successfully to selected network (${network})`,
