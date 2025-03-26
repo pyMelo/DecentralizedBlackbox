@@ -60,17 +60,23 @@ public:
         return gps;
     }
 
-    time_t getGPSEpoch() {
-      if (getGPS().time.isValid() && getGPS().date.isValid()) {
+time_t getGPSEpoch() {
+    if (getGPS().time.isValid() && getGPS().date.isValid()) {
+        int year = getGPS().date.year();
+        if (year < 2020) {
+            return 0; // Data non valida
+        }
+
         tmElements_t tm;
-        tm.Year = getGPS().date.year() - 1970;
+        tm.Year = year - 1970;
         tm.Month = getGPS().date.month();
         tm.Day = getGPS().date.day();
         tm.Hour = getGPS().time.hour();
         tm.Minute = getGPS().time.minute();
         tm.Second = getGPS().time.second();
+
         return makeTime(tm);
-      }
+    }
     return 0;
   }
 

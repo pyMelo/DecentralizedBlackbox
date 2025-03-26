@@ -16,6 +16,8 @@ public:
 
     void init() {
         preferences.begin("dailykeys", false);
+
+
         time_t startEpoch = preferences.getULong64("start_epoch", getInitialEpoch());
         preferences.putULong64("start_epoch", startEpoch);
 
@@ -49,6 +51,11 @@ public:
         if (currentDay > lastDay) {
             Serial.println("🔄 Day changed, generating new Daily Key...");
             generateDailyKey(true, gpsEpoch);
+            Preferences counterPrefs;
+            counterPrefs.begin("payload", false);
+            counterPrefs.putUInt("counter", 0);
+            counterPrefs.end();
+            Serial.println("✅ Payload Counter reset for new day");
             debugPrinted = false;
             return true;
         }
@@ -79,24 +86,52 @@ public:
     uint8_t* getDailyKey() { return daily_key; }
     String getCurrentDailyKey() { return bytesToHex(daily_key, DAILY_KEY_SIZE); }
 
-private:
-    Preferences preferences;
-    uint8_t daily_key[DAILY_KEY_SIZE];
 
     bool loadDailyKey() {
+        uint8_t storedKey[DAILY_KEY_SIZE];
         if (preferences.getBytes("last_daily_key", daily_key, DAILY_KEY_SIZE) == DAILY_KEY_SIZE) {
             Serial.print("🔄 Loaded Daily Key: ");
             Serial.println(bytesToHex(daily_key, DAILY_KEY_SIZE));
+
+            // 🔥 QUI devi leggere la stored key SEPARATAMENTE (o è identica a daily_key se vuoi confrontare)
+            preferences.getBytes("last_daily_key", storedKey, DAILY_KEY_SIZE);
+            Serial.print("📌 Stored key: ");
+            Serial.println(bytesToHex(storedKey, DAILY_KEY_SIZE));
             return true;
         }
+
         return false;
     }
+
+  void setManualDailyKey(const String& hexKey) {
+        if (hexKey.length() != DAILY_KEY_SIZE * 2) {
+            Serial.println("❌ Lunghezza chiave non valida!");
+            return;
+        }
+
+
+        uint8_t manualKey[DAILY_KEY_SIZE];
+        hexStringToBytes(hexKey, manualKey, DAILY_KEY_SIZE);
+
+        preferences.putBytes("last_daily_key", manualKey, DAILY_KEY_SIZE);
+        Serial.print("✅ Nuova Daily Key inserita manualmente: ");
+        Serial.println(hexKey);
+    }
+
+
+
+
+private:
+    Preferences preferences;
+    uint8_t daily_key[DAILY_KEY_SIZE];  // <-- aggiungi nuovamente questa linea!
+
+
 
     time_t getInitialEpoch() {
         struct tm timeinfo = {0};
         timeinfo.tm_year = 2025 - 1900;
         timeinfo.tm_mon  = 2;
-        timeinfo.tm_mday = 24;
+        timeinfo.tm_mday = 25;
         return mktime(&timeinfo);
     }
 
@@ -114,6 +149,8 @@ private:
                 generateInitialDailyKey(daily_key);
                 Serial.println("🚀 First Daily Key generated from Master Key!");
             } else {
+                preferences.getBytes("last_daily_key", previousKey, DAILY_KEY_SIZE);
+                Serial.println("");
                 generateDailyKeyFromPrevious(previousKey, daily_key, gpsEpoch);
                 Serial.println("🔁 New Daily Key generated from Previous Key!");
             }
@@ -194,6 +231,7 @@ private:
             num >>= 8;
         }
     }
+
 
     void sha256(const uint8_t* data, size_t dataLen, uint8_t* output) {
         uint8_t hash[32];

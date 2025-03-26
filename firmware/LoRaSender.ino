@@ -31,22 +31,24 @@ void setup() {
   gpsMonitor.begin(9600, 46, 45);
   Serial.println("✅ GPS Initialized.");
 
-  keyManager.init();
 
+  keyManager.init();
+  keyManager.loadDailyKey();
   payloadManager = new PayloadManager(&dht, &mpu, &gpsMonitor.getGPS(), keyManager.getDailyKey(), mpuFound);
 
   LoRaWAN_setup();
   Serial.println("✅ LoRaWAN Initialized.");
 }
 
-void loop() {
+void loop() { 
   static unsigned long lastPayloadTime = 0;
   static bool buttonPressed = false;
   static unsigned long buttonPressTime = 0;
 
   gpsMonitor.update();
-  gpsMonitor.printNMEAEvery(20000);
+  //gpsMonitor.printNMEAEvery(20000);
   gpsMonitor.monitorGPS();
+
 
   // Aggiorna la Daily Key leggendo la data dal GPS anche senza fix
   time_t gpsEpoch = gpsMonitor.getGPSEpoch();
@@ -63,11 +65,7 @@ void loop() {
 }
 
 void sendEncryptedPayload() {
-  if (!node->isActivated()) {
-    Serial.println("⚠️ LoRaWAN not connected, payload not sent.");
-    LoRaWAN_setup();
-    return;
-  }
+
 
   String hexPayload = payloadManager->createPayload();
   uint8_t payload[35];
